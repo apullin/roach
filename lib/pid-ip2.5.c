@@ -33,12 +33,6 @@
 #include "tih.h"
 #include "mpu6000.h"
 
-
-#define MC_CHANNEL_PWM1     1
-#define MC_CHANNEL_PWM2     2
-#define MC_CHANNEL_PWM3     3
-#define MC_CHANNEL_PWM4     4
-
 //#define HALFTHROT 10000
 #define HALFTHROT 2000
 #define FULLTHROT 2*HALFTHROT
@@ -326,11 +320,13 @@ void calibBatteryOffset(int spindown_ms) {
 
 /*****************************************************************************************/
 void EmergencyStop(void) {
-    pidSetInput(0, 0);
-    pidSetInput(1, 0);
+    pidSetInput(LEFT_LEGS_PID_NUM, 0);
+    pidSetInput(RIGHT_LEGS_PID_NUM, 0);
     DisableIntT1; // turn off pid interrupts
-    SetDCMCPWM(MC_CHANNEL_PWM1, 0, 0); // set PWM to zero
-    SetDCMCPWM(MC_CHANNEL_PWM2, 0, 0);
+    PDC1 = 0;
+    PDC2 = 0;
+    PDC3 = 0;
+    PDC4 = 0;
 }
 
 
@@ -347,23 +343,24 @@ static volatile unsigned char telemetry_count = 0;
 extern volatile MacPacket uart_tx_packet;
 extern volatile unsigned char uart_tx_flag;
 
+//5Khz event timer, to be time slices into interleaved 1khz events
 void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
     int j;
     LED_3 = 1;
     interrupt_count++;
 
-    //Telemetry save, at 1Khz
-    //TODO: Break coupling between PID module and telemetry triggering
-    if (interrupt_count == 3) {
-        telemSaveNow();
-    }
     //Update IMU
     //TODO: Break coupling between PID module and IMU update
-    if (interrupt_count == 4) {
+    if (interrupt_count == 0) {             //3 time slices
         mpuBeginUpdate();
         amsEncoderStartAsyncRead();
+    }
+    //Telemetry save, at 1Khz
+    //TODO: Break coupling between PID module and telemetry triggering
+    if (interrupt_count == 3) {             //2 time slices
+        telemSaveNow();
     }        //PID controller update
-    else if (interrupt_count == 5) {
+    else if (interrupt_count == 5) {        //1 time slice
         interrupt_count = 0;
 
         if (t1_ticks == T1_MAX) t1_ticks = 0;
@@ -377,8 +374,8 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
                         pidGetSetpoint(j);
                     }
                     if (t1_ticks > lastMoveTime) { // turn off if done running all legs
-                        pidObjs[0].onoff = 0;
-                        pidObjs[1].onoff = 0;
+                        pidObjs[LEFT_LEGS_PID_NUM].onoff = 0;
+                        pidObjs[RIGHT_LEGS_PID_NUM].onoff = 0;
                     }
                 }
                 else {
@@ -386,11 +383,11 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
                 }
             }
         }
-        if (pidObjs[0].mode == 0) {
+        if ( (pidObjs[LEFT_LEGS_PID_NUM].mode == 0) || (pidObjs[RIGHT_LEGS_PID_NUM].mode == 0)) {
             pidSetControl();
-        } else if (pidObjs[0].mode == 1) {
-            tiHSetDC(pidObjs[0].output_channel, pidObjs[0].pwmDes);
-            tiHSetDC(pidObjs[1].output_channel, pidObjs[1].pwmDes);
+        } else if( (pidObjs[LEFT_LEGS_PID_NUM].mode == 1) || (pidObjs[LEFT_LEGS_PID_NUM].mode == 1)) {
+            tiHSetDC(pidObjs[LEFT_LEGS_PID_NUM].output_channel, pidObjs[LEFT_LEGS_PID_NUM].pwmDes);
+            tiHSetDC(pidObjs[RIGHT_LEGS_PID_NUM].output_channel, pidObjs[RIGHT_LEGS_PID_NUM].pwmDes);
         }
 
     }
@@ -467,8 +464,8 @@ void pidGetState() {
 #endif
 
     time_start = sclockGetTime();
-    bemf[0] = pidObjs[0].inputOffset - adcGetMotorA(); // watch sign for A/D? unsigned int -> signed?
-    bemf[1] = pidObjs[1].inputOffset - adcGetMotorB(); // MotorB
+    bemf[LEFT_LEGS_PID_NUM] = pidObjs[LEFT_LEGS_PID_NUM].inputOffset - adcGetMotorA(); // watch sign for A/D? unsigned int -> signed?
+    bemf[RIGHT_LEGS_PID_NUM] = pidObjs[RIGHT_LEGS_PID_NUM].inputOffset - adcGetMotorB(); // MotorB
     // only works to +-32K revs- might reset after certain number of steps? Should wrap around properly
     for (i = 0; i < NUM_PIDS; i++) {
         unsigned char encIdx = pidObjs[i].encIdx;
@@ -573,15 +570,15 @@ void pidSetControl() {
         UpdatePID(&(pidObjs[j]));
     } // end of for(j)
 
-    if (pidObjs[0].onoff && pidObjs[1].onoff) // both motors on to run
+    if (pidObjs[LEFT_LEGS_PID_NUM].onoff && pidObjs[RIGHT_LEGS_PID_NUM].onoff) // both motors on to run
     {
-        tiHSetDC(pidObjs[0].output_channel, pidObjs[0].output);
-        tiHSetDC(pidObjs[1].output_channel, pidObjs[1].output);
+        tiHSetDC(pidObjs[LEFT_LEGS_PID_NUM].output_channel, pidObjs[LEFT_LEGS_PID_NUM].output);
+        tiHSetDC(pidObjs[RIGHT_LEGS_PID_NUM].output_channel, pidObjs[RIGHT_LEGS_PID_NUM].output);
     }
     else // turn off motors if PID loop is off
     {
-        tiHSetDC(pidObjs[0].output_channel, 0);
-        tiHSetDC(pidObjs[1].output_channel, 0);
+        tiHSetDC(pidObjs[LEFT_LEGS_PID_NUM].output_channel, 0);
+        tiHSetDC(pidObjs[RIGHT_LEGS_PID_NUM].output_channel, 0);
     }
 }
 
