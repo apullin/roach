@@ -65,6 +65,7 @@ typedef struct
 	int index;			// right index to moves
 	int leg_stride;
         unsigned char p_state_flip;     //boolean; flip or do not flip
+        unsigned char encIdx;           //Store encoder index per controller
         unsigned char output_channel;
 } pidPos;
 
@@ -84,10 +85,7 @@ void pidSetup();
 void initPIDVelProfile();
 void setPIDVelProfile(int pid_num, int *interval, int *delta, int *vel, int onceFlag);
 void initPIDObjPos(pidPos *pid, int Kp, int Ki, int Kd, int Kaw, int ff);
-//void SetupTimer1(void);
 void pidStartTimedTrial(unsigned int run_time);
-void pidSetInput(int pid_num, int input_val);
-void pidSetGains(int pid_num, int Kp, int Ki, int Kd, int Kaw, int ff);
 void pidGetState(); // update state vector from bemf and Hall angle
 void pidGetSetpoint(int j);
 void checkSwapBuff(int j);
@@ -98,11 +96,22 @@ void pidOn(int pid_num);
 void pidOff(int pid_num);
 void pidZeroPos(int pid_num);
 void calibBatteryOffset(int spindown_ms);
+
+// Getters
 long pidGetPState(unsigned int channel);
+long pidGetPInput(unsigned int channel);
+long pidGetInterpolate(unsigned int channel);
+int pidGetOutput(unsigned int channel);
+int pidGetBEMF(unsigned int channel);
+
+// Setters
+void pidSetGains(int pid_num, int Kp, int Ki, int Kd, int Kaw, int ff);
+void pidSetInput(int pid_num, int input_val);
 void pidSetPInput(unsigned int channel, long p_input);
 void pidStartMotor(unsigned int channel);
 void pidSetTimeFlag(unsigned int channel, char val);
 void pidSetMode(unsigned int channel, char mode);
 void pidSetPWMDes(unsigned int channel, int pwm);
+
 
 #endif // __PID_H

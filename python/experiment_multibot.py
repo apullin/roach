@@ -24,7 +24,7 @@ EXIT_WAIT   = False
 def main():    
     xb = setupSerial(shared.BS_COMPORT, shared.BS_BAUDRATE)
     
-    R1 = Velociroach('\x20\x52', xb)
+    R1 = Velociroach('\x21\x02', xb)
     R1.SAVE_DATA = True
                             
     #R1.RESET = False       #current roach code does not support software reset
@@ -55,8 +55,10 @@ def main():
 
     simpleAltTripod = GaitConfig(motorgains, rightFreq=5, leftFreq=5) # Parameters can be passed into object upon construction, as done here.
     simpleAltTripod.phase = PHASE_180_DEG                             # Or set individually, as here
-    simpleAltTripod.deltasLeft = [0.25, 0.25, 0.25]
-    simpleAltTripod.deltasRight = [0.25, 0.25, 0.25]
+    #simpleAltTripod.deltasLeft = [0.25, 0.25, 0.25]
+    #simpleAltTripod.deltasRight = [0.25, 0.25, 0.25]
+    simpleAltTripod.deltasLeft = [0.35, 0.15, 0.15]
+    simpleAltTripod.deltasRight = [0.35, 0.15, 0.15]
     #simpleAltTripod.deltasTime  = [0.25, 0.25, 0.25] # Not current supported by firmware; time deltas are always exactly [0.25, 0.25, 0.25, 0.25]
     
     # Configure intra-stride control
@@ -64,7 +66,7 @@ def main():
     time.sleep(0.1)  #minor hack, due to timing
 
     # example , 0.1s lead in + 2s run + 0.1s lead out
-    EXPERIMENT_RUN_TIME_MS     = 2000 #ms
+    EXPERIMENT_RUN_TIME_MS     = 1500 #ms
     EXPERIMENT_LEADIN_TIME_MS  = 100  #ms
     EXPERIMENT_LEADOUT_TIME_MS = 100  #ms
     

@@ -92,11 +92,13 @@ void pidSetup() {
     //TODO: This should be generalized fo there is no sense of "left" and "right" here
     pidObjs[LEFT_LEGS_PID_NUM].output_channel  = LEFT_LEGS_TIH_CHAN;
     pidObjs[LEFT_LEGS_PID_NUM].p_state_flip    = LEFT_LEG_FLIP;
-    pidObjs[RIGHT_LEGS_PID_NUM].output_channel = LEFT_LEGS_TIH_CHAN;
+    pidObjs[LEFT_LEGS_PID_NUM].output_channel  = LEFT_LEGS_TIH_CHAN;
+    pidObjs[LEFT_LEGS_PID_NUM].encIdx          = LEFT_LEGS_ENC_NUM;
 
     pidObjs[RIGHT_LEGS_PID_NUM].output_channel = RIGHT_LEGS_TIH_CHAN;
     pidObjs[RIGHT_LEGS_PID_NUM].p_state_flip   = RIGHT_LEG_FLIP;
     pidObjs[RIGHT_LEGS_PID_NUM].output_channel = RIGHT_LEGS_TIH_CHAN;
+    pidObjs[RIGHT_LEGS_PID_NUM].encIdx         = RIGHT_LEGS_ENC_NUM;
 
     // Initialize PID structures before starting Timer1
     pidSetInput(LEFT_LEGS_PID_NUM, 0);
@@ -469,17 +471,22 @@ void pidGetState() {
     bemf[1] = pidObjs[1].inputOffset - adcGetMotorB(); // MotorB
     // only works to +-32K revs- might reset after certain number of steps? Should wrap around properly
     for (i = 0; i < NUM_PIDS; i++) {
-        int encPosition = amsEncoderGetPos(i);
-        int encOticks = amsEncoderGetOticks(i);
-        long encOffset = amsEncoderGetOffset(i);
-        p_state = (long) (encPosition << 2); // pos 14 bits 0x0 -> 0x3fff
-        p_state = p_state + ((long)encOticks << 16);
-        p_state = p_state - ((long)encOffset << 2); // subtract offset to get zero position
+        unsigned char encIdx = pidObjs[i].encIdx;
+        unsigned int encPosition = amsEncoderGetPos(encIdx);
+        long encOticks = amsEncoderGetOticks(encIdx);
+        unsigned int encOffset = amsEncoderGetOffset(encIdx);
+        p_state = (long)(encPosition << 2); // pos 14 bits 0x0 -> 0x3fff
+        p_state = p_state + (encOticks << 16);
+        p_state = p_state - (long)(encOffset << 2); // subtract offset to get zero position
 
+        pidObjs[i].p_state = p_state;
+
+        // Encoder can be "backwards", where it spins in the opposite direction for the same
+        //  sense of "forward" in the robot.
+        //TODO: Does this also need to be reflected in the integral and deriv state? (pullin,ronf,dhaldane,abuchan)
         if(pidObjs[i].p_state_flip){
             pidObjs[i].p_state = -pidObjs[i].p_state;
         }
-
     }
 
     time_end = sclockGetTime() - time_start;
@@ -618,6 +625,15 @@ long pidGetPState(unsigned int channel) {
 }
 
 //TODO: Controller design, this function was created specifically to remove existing externs.
+long pidGetPInput(unsigned int channel) {
+    if (channel < NUM_PIDS) {
+        return pidObjs[channel].p_input;
+    } else {
+        return 0;
+    }
+}
+
+//TODO: Controller design, this function was created specifically to remove existing externs.
 void pidSetPInput(unsigned int channel, long p_input) {
     if (channel < NUM_PIDS) {
         pidObjs[channel].p_input = p_input;
@@ -655,6 +671,29 @@ void pidSetPWMDes(unsigned int channel, int pwm){
     }
 }
 
+long pidGetInterpolate(unsigned int channel){
+    if (channel < NUM_PIDS) {
+        return pidObjs[channel].interpolate;
+    } else {
+        return 0;
+    }
+}
+
+int pidGetOutput(unsigned int channel){
+    if (channel < NUM_PIDS) {
+        return pidObjs[channel].output;
+    } else {
+        return 0;
+    }
+}
+
+int pidGetBEMF(unsigned int channel){
+    if (channel < NUM_PIDS) {
+        return bemf[channel];
+    } else {
+        return 0;
+    }
+}
 
 // Timer 1 is used for main pid motor control loop
 static void SetupTimer1(void)
@@ -666,3 +705,4 @@ static void SetupTimer1(void)
   	t1_ticks = 0;
     OpenTimer1(T1CON1value, T1PERvalue);
 }
+
