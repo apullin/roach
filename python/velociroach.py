@@ -293,6 +293,11 @@ class Velociroach:
         
         self.clAnnounce()
         print " ------------------------------------ "
+    
+    def setThrustPWMOpenLoop(self, pwms):
+        thrust1 = pwms[0]
+        thrust2 = pwms[1]
+        self.tx( 0, command.SET_THRUST_OPEN_LOOP, pack('2h',*pwms))
         
         
         
