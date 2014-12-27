@@ -1,14 +1,10 @@
-import glob
-import time
-import sys
+import glob,time,sys,datetime
 from lib import command
 from callbackFunc import xbee_received
-import datetime
 import serial
-import shared
+import shared                       #this is now only COMPORT settings and baudrate settings
 from struct import pack,unpack
-from xbee import XBee
-from math import ceil,floor
+from math import floor
 import numpy as np
 
 # TODO: check with firmware if this value is actually correct
@@ -23,6 +19,7 @@ class GaitConfig:
     repeat = None
     deltasLeft = None
     deltasRight = None
+    
     def __init__(self, motorgains = None, duration = None, rightFreq = None, leftFreq = None, phase = None, repeat = None):
         if motorgains == None:
             self.motorgains = [0,0,0,0,0 , 0,0,0,0,0]
@@ -34,7 +31,7 @@ class GaitConfig:
         self.leftFreq = leftFreq
         self.phase = phase
         self.repeat = repeat
-        
+         
         
 class Velociroach:
     motor_gains_set = False
@@ -52,26 +49,39 @@ class Velociroach:
     SAVE_DATA = False
     RESET = False
 
-    def __init__(self, address, xb):
+    def __init__(self, address, xbee):
             self.DEST_ADDR = address
             self.DEST_ADDR_int = unpack('>h',self.DEST_ADDR)[0] #address as integer
-            self.xb = xb
+            
+            if xbee == None:
+                raise Exception("Robot must be declared with xbee in argument")
+            
+            if not xbee.ser.isOpen():
+                raise Exception("Xbee connection is not open!")
+        
+            #Store xbee object for use for sending            
+            self.xbee = xbee
+            #Add robot to list of robots in BaseStation object
+            self.xbee.associateRobot(self)
+            #TODO: Cyclic dependency? self.xbee -> xbee, xbee->ROBOT[i]->self ?
+            
             print "Robot with DEST_ADDR = 0x%04X " % self.DEST_ADDR_int
 
     def clAnnounce(self):
         print "DST: 0x%02X | " % self.DEST_ADDR_int,
     
-    def tx(self, status, type, data):
-        payload = chr(status) + chr(type) + ''.join(data)
-        self.xb.tx(dest_addr = self.DEST_ADDR, data = payload)
+    #Now done via a call to BaseStation sendTX function
+    #def tx(self, status, type, data):
+    #    payload = chr(status) + chr(type) + ''.join(data)
+    #    self.xbee.tx(dest_addr = self.DEST_ADDR, data = payload)
         
     def reset(self):
         self.clAnnounce()
         print "Resetting robot..."
-        self.tx( 0, command.SOFTWARE_RESET, pack('h',1))
+        self.xbee.sendTX( 0, command.SOFTWARE_RESET, pack('h',1))
         
     def sendEcho(self, msg):
-        self.tx( 0, command.ECHO, msg)
+        self.xbee.sendTX( 0, command.ECHO, msg)
         
     def query(self, retries = 8):
         self.robot_queried = False
@@ -79,7 +89,7 @@ class Velociroach:
         while not(self.robot_queried) and (tries <= retries):
             self.clAnnounce()
             print "Querying robot , ",tries,"/",retries
-            self.tx( 0,  command.WHO_AM_I, "Robot Echo") #sent text is unimportant
+            self.xbee.sendTX( 0,  command.WHO_AM_I, "Robot Echo") #sent text is unimportant
             tries = tries + 1
             time.sleep(0.1)   
     
@@ -87,7 +97,7 @@ class Velociroach:
     #existing VR firmware does not send a packet when the erase is done, so this will hang and retry.
     def eraseFlashMem(self, timeout = 8):
         eraseStartTime = time.time()
-        self.tx( 0, command.ERASE_SECTORS, pack('L',self.numSamples))
+        self.xbee.sendTX( 0, command.ERASE_SECTORS, pack('L',self.numSamples))
         self.clAnnounce()
         print "Started flash erase ..."
         while not (self.flash_erased):
@@ -95,19 +105,19 @@ class Velociroach:
             time.sleep(0.25)
             if (time.time() - eraseStartTime) > timeout:
                 print"Flash erase timeout, retrying;"
-                self.tx( 0, command.ERASE_SECTORS, pack('L',self.numSamples))
+                self.xbee.sendTX( 0, command.ERASE_SECTORS, pack('L',self.numSamples))
                 eraseStartTime = time.time()    
         
     def setPhase(self, phase):
         self.clAnnounce()
         print "Setting phase to 0x%04X " % phase
-        self.tx( 0, command.SET_PHASE, pack('l', phase))
+        self.xbee.sendTX( 0, command.SET_PHASE, pack('l', phase))
         time.sleep(0.05)        
     
     def startTimedRun(self, duration):
         self.clAnnounce()
         print "Starting timed run of",duration," ms"
-        self.tx( 0, command.START_TIMED_RUN, pack('h', duration))
+        self.xbee.sendTX( 0, command.START_TIMED_RUN, pack('h', duration))
         time.sleep(0.05)
         
     def findFileName(self):   
@@ -141,20 +151,20 @@ class Velociroach:
         self.clAnnounce()
         print "     ",temp
         
-        self.tx( 0, command.SET_VEL_PROFILE, pack('12h', *temp))
+        self.xbee.sendTX( 0, command.SET_VEL_PROFILE, pack('12h', *temp))
         time.sleep(0.1)
     
     #TODO: This may be a vestigial function. Check versus firmware.
     def setMotorMode(self, mode):
         self.clAnnounce()
         print "Setting motor mode to", mode
-        self.tx( 0, command.SET_MOTOR_MODE, pack('h',mode))
+        self.xbee.sendTX( 0, command.SET_MOTOR_MODE, pack('h',mode))
         time.sleep(0.1)
             
     def setZeroMotorPosition(self):
         self.clAnnounce()
         print "Zeroing motor position"
-        self.tx( 0, command.ZERO_POS, "Zero motor")
+        self.xbee.sendTX( 0, command.ZERO_POS, "Zero motor")
     
     ######TODO : sort out this function and flashReadback below
     def downloadTelemetry(self, timeout = 5, retry = True):
@@ -162,7 +172,7 @@ class Velociroach:
         self.VERBOSE = False
         self.clAnnounce()
         print "Started telemetry download"
-        self.tx( 0, command.FLASH_READBACK, pack('=L',self.numSamples))
+        self.xbee.sendTX( 0, command.FLASH_READBACK, pack('=L',self.numSamples))
                 
         dlStart = time.time()
         shared.last_packet_time = dlStart
@@ -190,7 +200,7 @@ class Velociroach:
                     print "Started telemetry download"
                     dlStart = time.time()
                     shared.last_packet_time = dlStart
-                    self.tx( 0, command.FLASH_READBACK, pack('=L',self.numSamples))
+                    self.xbee.sendTX( 0, command.FLASH_READBACK, pack('=L',self.numSamples))
                 else: #retry == false
                     print "Not trying telemetry download."          
 
@@ -272,7 +282,7 @@ class Velociroach:
     def startTelemetrySave(self):
         self.clAnnounce()
         print "Started telemetry save of", self.numSamples," samples."
-        self.tx(0, command.START_TELEMETRY, pack('L',self.numSamples))
+        self.xbee.sendTX(0, command.START_TELEMETRY, pack('L',self.numSamples))
 
     def setMotorGains(self, gains, retries = 8):
         tries = 1
@@ -280,7 +290,7 @@ class Velociroach:
         while not(self.motor_gains_set) and (tries <= retries):
             self.clAnnounce()
             print "Setting motor gains...   ",tries,"/8"
-            self.tx( 0, command.SET_PID_GAINS, pack('10h',*gains))
+            self.xbee.sendTX( 0, command.SET_PID_GAINS, pack('10h',*gains))
             tries = tries + 1
             time.sleep(0.3)
             
@@ -297,60 +307,159 @@ class Velociroach:
         self.clAnnounce()
         print " ------------------------------------ "
         
+    
+    ############ Interal Radio Callback ############
+    def callbackHandler(self, packet):
+        #Here, packet addressing is already checked by the raio
+
+        #Dictionary of packet formats, for unpack()
+        #TODO: this should be moved to lib.command
+        pktFormat = { \
+            command.TX_DUTY_CYCLE:          'l3f', \
+            command.GET_IMU_DATA:           'l6h', \
+            command.TX_SAVED_STATE_DATA:    'l3f', \
+            command.SET_THRUST_OPEN_LOOP:   '', \
+            command.PID_START_MOTORS:       '', \
+            command.SET_PID_GAINS:          '10h', \
+            command.GET_PID_TELEMETRY:      '', \
+            command.GET_AMS_POS:            '=2l', \
+            command.GET_IMU_LOOP_ZGYRO:     '='+2*'Lhhh', \
+            command.SET_MOVE_QUEUE:         '', \
+            command.SET_STEERING_GAINS:     '6h', \
+            command.SOFTWARE_RESET:         '', \
+            command.ERASE_SECTORS:          'L', \
+            command.FLASH_READBACK:         '=LL' +'4l'+'11h', \
+            command.SLEEP:                  'b', \
+            command.ECHO:                   'c' ,\
+            command.SET_VEL_PROFILE:        '8h' ,\
+            command.WHO_AM_I:               '', \
+            }
+        #TODO: command.FLASH_READBACK needs automatic correspondence with self.telemFormatString   
+
+        rf_data = packet.get('rf_data')
+        #rssi = ord(packet.get('rssi'))
+        (src_addr, ) = unpack('>H', packet.get('source_addr'))
+        #id = packet.get('id')
+        #options = ord(packet.get('options'))
         
+        #Only print pertinent SRC lines
+        #This also allows us to turn off messages on the fly, for telem download
+        if r.VERBOSE:
+            print "SRC: 0x%04X | " % src_addr,
+       
+        status = ord(rf_data[0])
+        type = ord(rf_data[1])
+        data = rf_data[2:]
+          
+        #Record the time the packet is received, so command timeouts
+        # can be done
+        shared.last_packet_time = time.time()
+        
+        try:
+            pattern = pktFormat[type]
+        except KeyError:
+            print "Got bad packet type: ",type
+            return
+        
+        #TODO: change command handlers to a dictionary; xbee lib does this, use as example?
+        try:
+            # ECHO
+            if type == command.ECHO:
+                print "echo: status = ",status," type=",type," data = ",data
+                
+            # SET_PID_GAINS
+            elif type == command.SET_PID_GAINS:
+                gains = unpack(pattern, data)
+                print "Set motor gains to ", gains
+                self.motor_gains_set = True
+            
+            # FLASH_READBACK
+            elif type == command.FLASH_READBACK:
+                datum = unpack(pattern, data)
+                datum = list(datum)
+                telem_index = datum.pop(0) #pop removes the index number from data array
+                #print "Special Telemetry Data Packet #",telem_index
+                #print datum
+                if (datum[0] != -1) and (telem_index) >= 0:
+                    if telem_index <= self.numSamples:
+                        self.telemtryData[telem_index] = datum
+                    else:
+                        print "Got out of range telem_index =",telem_index
+            
+            # ERASE_SECTORS
+            elif type == command.ERASE_SECTORS:
+                datum = unpack(pattern, data)
+                print "Erased flash for", datum[0], " samples."
+                if datum[0] != 0:
+                    self.flash_erased = datum[0] 
+                
+            # SLEEP     # removed due to non-maintenance; could be updated.
+            #elif type == command.SLEEP:
+            #    datum = unpack(pattern, data)
+            #    print "Sleep reply: ",datum[0]
+            #    if datum[0] == 0:
+            #        self.awake = True;
+            
+            # ZERO_POS
+            elif type == command.ZERO_POS:
+                print 'Hall zeros established; Previous motor positions:',
+                motor = unpack(pattern,data)
+                print motor
+                
+            # SET_VEL_PROFILE
+            elif (type == command.SET_VEL_PROFILE):
+                print "Set Velocity Profile readback:"
+                temp = unpack(pattern, data)
+                print temp
+                
+            # WHO_AM_I
+            elif (type == command.WHO_AM_I):
+                print "query : ",data
+                sel.frobot_queried = True
+
+            # GET_AMS_POS
+            elif (type == command.GET_AMS_POS):
+                datum = unpack(pattern, data)
+                #This command sends back a useless parameter, we need not display it
+                #print "Motor positions: { %d , %d }" % (datum[0], datum[1])
+
+                      
+        except Exception as args:
+            print "\nGeneral exception from callbackfunc:",args
+            print "\n    ******    TRACEBACK    ******    "
+            traceback.print_exc()
+            print "    *****************************    \n"
+            print "Attempting to exit cleanly..."
+            shared.xb.halt()
+            shared.ser.close()
+            sys.exit()
+
+    ################################################
         
 ########## Helper functions #################
 #TODO: find a home for these? Possibly in BaseStation class (pullin, abuchan)
-
-def setupSerial(COMPORT , BAUDRATE , timeout = 3, rtscts = 0):
-    print "Setting up serial ..."
-    try:
-        ser = serial.Serial(port = COMPORT, baudrate = BAUDRATE, \
-                    timeout=timeout, rtscts=rtscts)
-    except serial.serialutil.SerialException:
-        print "Could not open serial port:",shared.BS_COMPORT
-        sys.exit(1)
-    
-    shared.ser = ser
-    ser.flushInput()
-    ser.flushOutput()
-    return XBee(ser, callback = xbee_received)
-    
-    
-def xb_safe_exit(xb):
-    print "Halting xb"
-    if xb is not None:
-        xb.halt()
-    else:
-        shared.xb.halt()
-        
-    print "Closing serial"
-    shared.ser.close()
-    print "Exiting..."
-    sys.exit(1)
-    
-
-   
-def verifyAllMotorGainsSet():
+  
+def verifyAllMotorGainsSet(xb):
     #Verify all robots have motor gains set
-    for r in shared.ROBOTS:
+    for r in xb.ROBOTS:
         if not(r.motor_gains_set):
             print "CRITICAL : Could not SET MOTOR GAINS on robot 0x%02X" % r.DEST_ADDR_int
-            xb_safe_exit(shared.xb)
+            xb.close()
             
-def verifyAllTailGainsSet():
+def verifyAllTailGainsSet(xb):
     #Verify all robots have motor gains set
-    for r in shared.ROBOTS:
+    for r in xb.ROBOTS:
         if not(r.tail_gains_set):
             print "CRITICAL : Could not SET TAIL GAINS on robot 0x%02X" % r.DEST_ADDR_int
-            xb_safe_exit(shared.xb)
+            xb.close()
             
-def verifyAllQueried():            
-    for r in shared.ROBOTS:
+def verifyAllQueried(xb):            
+    for r in xb.ROBOTS:
         if not(r.robot_queried):
             print "CRITICAL : Could not query robot 0x%02X" % r.DEST_ADDR_int
-            xb_safe_exit(shared.xb)
+            xb.close()
 
+#TODO: Replace with tqdm library, since it gives a time estimate.
 def dlProgress(current, total):
     percent = int(100.0*current/total)
     dashes = int(floor(percent/100.0 * 45))

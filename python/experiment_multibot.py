@@ -17,23 +17,22 @@ sys.path.append(os.path.dirname("../imageproc-settings/"))      # Some projects 
 import shared
 
 from velociroach import *
+from BaseStation import *
 
 ####### Wait at exit? #######
 EXIT_WAIT   = False
 
 def main():    
-    xb = setupSerial(shared.BS_COMPORT, shared.BS_BAUDRATE)
+    #Initialize the basestation and the helper functions
+    xb = BaseStation(shared.BS_COMPORT , shared.BS_BAUDRATE, verbose = False)
     
-    R1 = Velociroach('\x21\x02', xb)
+    R1 = Velociroach('\x21\x02', xbee = xb)
     R1.SAVE_DATA = True
                             
     #R1.RESET = False       #current roach code does not support software reset
-    
-    shared.ROBOTS.append(R1) #This is necessary so callbackfunc can reference robots
-    shared.xb = xb           #This is necessary so callbackfunc can halt before exit
 
     # Send resets
-    for r in shared.ROBOTS:
+    for r in xb.robots:
         if r.RESET:
             r.reset()
             time.sleep(0.35)
@@ -41,7 +40,7 @@ def main():
     # TODO: move reset / telem flags inside robot class? (pullin)
     
     # Send robot a WHO_AM_I command, verify communications
-    for r in shared.ROBOTS:
+    for r in xb.robots:
         r.query(retries = 3)
     
     #Verify all robots can be queried
@@ -114,7 +113,7 @@ def main():
                 break
 
     print "Done"
-    xb_safe_exit(xb)
+    xb.close()
     
 #Provide a try-except over the whole main function
 # for clean exit. The Xbee module should have better
@@ -125,17 +124,12 @@ if __name__ == '__main__':
         main()
     except KeyboardInterrupt:
         print "\nRecieved Ctrl+C, exiting."
-        shared.xb.halt()
-        shared.ser.close()
     except Exception as args:
         print "\nGeneral exception:",args
         print "\n    ******    TRACEBACK    ******    "
         traceback.print_exc()
         print "    *****************************    \n"
         print "Attempting to exit cleanly..."
-        shared.xb.halt()
-        shared.ser.close()
         sys.exit()
     except serial.serialutil.SerialException:
-        shared.xb.halt()
-        shared.ser.close()
+        sys.exit()
