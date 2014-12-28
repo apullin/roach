@@ -20,12 +20,16 @@ from lib import command
 import serial
 from scan import *
 from xbee import XBee
-from struct import unpack
+from struct import unpack,pack
 
 class BaseStation(object):
 
     api_frame = 'A'
     pendingAT = False
+    
+    channel = None
+    PANid   = None
+    base_addr = None
     
     robots = []
 
@@ -54,7 +58,36 @@ class BaseStation(object):
 
         #Set up callback
         self.xb = XBee(self.ser, callback = self.xbee_received)
+        
+        #Change XBee to specified channel
+        if channel:
+            self.setChannel(channel)
+            time.sleep(0.01) #precaution
+        #Store channel based on what the device is actually set to
+        self.channel_int = self.getChannel()
+        self.channel = pack('>b',self.channel_int)
 
+        #Change XBee to specified PAN ID
+        if PANid:
+            self.setPanID(PANid)
+            time.sleep(0.01) #precaution
+        #Store PAN ID based on what the device is actually set to
+        self.PANid_int = self.getPanID()
+        self.PANid = pack('>h',self.PANid_int)        
+
+        #Change XBee to specified source address
+        if base_addr:
+            self.setSrcAddr(base_addr)
+            time.sleep(0.01) #precaution
+        #Store PAN ID based on what the device is actually set to
+        self.base_addr_int = self.getSrcAddr()
+        self.base_addr = pack('>h',self.base_addr_int)     
+        
+        print "Xbee with:"
+        print "\tCHANNEL = 0x%02X" % self.channel_int
+        print "\tPANID = 0x%04X" % self.PANid_int
+        print "\tBASE_ADDR = 0x%04X" % self.base_addr_int
+        
     def close(self):
         try:
             self.xb.halt()
@@ -63,9 +96,9 @@ class BaseStation(object):
         except SerialException:
             print "SerialException on Basestation close() attempt."
             
-    def sendTX(self, status, type, data ):
+    def sendTX(self, dest, status, type, data ):
         pld = chr(status) + chr(type)  + ''.join(data)
-        self.xb.tx(dest_addr = self.dest_addr, data = pld)
+        self.xb.tx(dest_addr = dest , data = pld)   #very specific arguments convention due to oddity in xbee library
         
     def sendAT(self, command, parameter = None, frame_id = None):
     #TODO: This logic may not be correct. Need to sort out condition where frame id and parameters are used

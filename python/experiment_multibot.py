@@ -44,7 +44,7 @@ def main():
         r.query(retries = 3)
     
     #Verify all robots can be queried
-    verifyAllQueried()  # exits on failure
+    verifyAllQueried(xb)  # exits on failure
     
     # Motor gains format:
     #  [ Kp , Ki , Kd , Kaw , Kff     ,  Kp , Ki , Kd , Kaw , Kff ]
