@@ -10,6 +10,7 @@ from struct import pack,unpack
 from xbee import XBee
 from math import ceil,floor
 import numpy as np
+import json
 
 # TODO: check with firmware if this value is actually correct
 PHASE_180_DEG = 0x8000
@@ -49,6 +50,7 @@ class Velociroach:
     telemSampleFreq = 1000
     VERBOSE = True
     telemFormatString = '%d' # single type forces all data to be saved in this type
+    telemDataLabels = ["time" , "Rlegpos" , "Rlegpos" , "cmdRlegpos" , "cmdLlegpos" , "DCR" , "DCL" , "GyroX" , "GryoY" , "GryoZ" , "AX" , "AY" , "AZ" , "RBEMF" , "LBEMF" , "VBatt" ]
     SAVE_DATA = False
     RESET = False
 
@@ -218,31 +220,33 @@ class Velociroach:
         self.findFileName()
         self.writeFileHeader()
         fileout = open(self.dataFileName, 'a')
-        np.savetxt(fileout , np.array(self.telemtryData), self.telemFormatString, delimiter = ',')
+        
+        telemDict = {}
+        for label in labels:
+            i = labels.index(label)
+            telemDict[label] = imudata[i]
+        metadata = {}
+        metadata("freqL") = 5
+        metadata("freqR") = 6
+        metadata("phase") = 180.0
+        metadata("deltasLeft") = self.currentGait.deltasLeft
+        metadata("deltasRight") = self.currentGait.deltasRight
+        metadata("leadIn") = self.leadIn
+        metadata("leadOut") = self.leadIn
+        metadata("motorGains") = self.motorGains
+        today = time.localtime()
+        date = str(today.tm_year)+'/'+str(today.tm_mon)+'/'+str(today.tm_mday)+'  '
+        date = date + str(today.tm_hour) +':' + str(today.tm_min)+':'+str(today.tm_sec)
+        metadata("recTime") = date
+        metadata("notes") = ""
+        
+        jsonTelem = {"metadata":metadata , "telemetryData":telemDict}
+        fileout.write( json.dumps(jsonTelem) )
+        
         fileout.close()
         self.clAnnounce()
         print "Telemetry data saved to", self.dataFileName
         
-    def writeFileHeader(self):
-        fileout = open(self.dataFileName,'w')
-        #write out parameters in format which can be imported to Excel
-        today = time.localtime()
-        date = str(today.tm_year)+'/'+str(today.tm_mon)+'/'+str(today.tm_mday)+'  '
-        date = date + str(today.tm_hour) +':' + str(today.tm_min)+':'+str(today.tm_sec)
-        fileout.write('%  Data file recorded ' + date + '\n')
-
-        fileout.write('%  Stride Frequency         = ' +repr( [ self.currentGait.leftFreq, self.currentGait.leftFreq]) + '\n')
-        fileout.write('%  Lead In /Lead Out        = ' + '\n')
-        fileout.write('%  Deltas (Fractional)      = ' + repr(self.currentGait.deltasLeft) + ',' + repr(self.currentGait.deltasRight) + '\n')
-        fileout.write('%  Phase                    = ' + repr(self.currentGait.phase) + '\n')
-            
-        fileout.write('%  Experiment.py \n')
-        fileout.write('%  Motor Gains    = ' + repr(self.currentGait.motorgains) + '\n')
-        fileout.write('% Columns: \n')
-        # order for wiring on RF Turner
-        fileout.write('% time | Right Leg Pos | Left Leg Pos | Commanded Right Leg Pos | Commanded Left Leg Pos | DCR | DCL | GyroX | GryoY | GryoZ | AX | AY | AZ | RBEMF | LBEMF | VBatt\n')
-        fileout.close()
-
     def setupTelemetryDataTime(self, runtime):
         ''' This is NOT current for Velociroach! '''
         #TODO : update for Velociroach
