@@ -30,20 +30,12 @@
 #define BCLOCK_INCR_15HZ    786;
 
 typedef struct{
-    unsigned int t1;
-    unsigned int theta1;
-    unsigned int incr1;
-    unsigned int period1;
-    unsigned int arg1;
-    int phase1;
-    unsigned int sp1;
-    unsigned int t2;
-    unsigned int theta2;
-    unsigned int incr2;
-    unsigned int period2;
-    unsigned int arg2;
-    int phase2;
-    unsigned int sp2;
+    unsigned int speed_td;
+    unsigned int phase;
+    unsigned int incr;
+    unsigned int period;
+    unsigned int arg;
+    unsigned int sp;
 } bclock_t;
 
 void blockSetup();

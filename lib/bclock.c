@@ -7,7 +7,7 @@
 #include "stdint.h"
 #include "timer.h"
 
-bclock_t currentClock;
+bclockParams_t currentClock_L, currentClock_R;
 char running = 0;
 
 //Private function prototypes
@@ -24,8 +24,19 @@ void SetupTimer3() {
     _T3IE = 0;
 }
 
-static void bclockSynth(void){
+static void bclockSynth(bclock_t* clock){
     //Synth math goes here!
+
+    unsigned long y_long;
+
+    unsigned long T = clock->period;
+    
+
+    y_long = (t*(1 + a2*(-1 + 2*t1)))/(2.*t1);
+    y_long = 0.5 + a2*(-0.5 + t);
+    y_long = (t + a2*t + T - a2*T - 2*t2 - 2*a2*t*t2 + 2*a2*T*t2)/(2*T - 2*t2);
+    
+    clock->sp = (unsigned int)y_long;
 }
 
 
@@ -33,10 +44,11 @@ static void bclockSynth(void){
 void __attribute__((interrupt, no_auto_psv)) _T3Interrupt(void) {
 
     if(running){
-        currentClock.arg1 += currentClock.incr1;
-        currentClock.arg2 += currentClock.incr2;
+        currentClock_L.arg += currentClock_L.incr;
+        currentClock_R.arg += currentClock_R.incr;
 
-        bclockSynth();
+        bclockSynth(&currentClock_L);
+        bclockSynth(&currentClock_R);
     }
     else{
         tiHSetDC(1, 0);
