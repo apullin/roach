@@ -38,6 +38,7 @@
 #include "uart_driver.h"
 #include "ppool.h"
 #include "carray.h"
+#include "robot_config.h"
 
 #include <stdlib.h>
 
@@ -66,11 +67,7 @@ int main() {
     fun_queue = carrayCreate(FUN_Q_LEN);
     cmdSetup();
 
-    // Radio setup
-    radioInit(RADIO_RXPQ_MAX_SIZE, RADIO_TXPQ_MAX_SIZE);
-    radioSetChannel(RADIO_CHANNEL);
-    radioSetSrcAddr(RADIO_SRC_ADDR);
-    radioSetSrcPanID(RADIO_PAN_ID);
+    
 
     //TODO: Move to UART module, or UART init function.
     uart_tx_packet = NULL;
@@ -80,14 +77,30 @@ int main() {
     // Need delay for encoders to be ready
     delay_ms(100);
     amsEncoderSetup();
+
+    //Note: some startup sequences may not work, due to dependencies.
     mpuSetup();
     tiHSetup();
     dfmemSetup();
+    robotConfigSetup();
     telemSetup();
     adcSetup();
     pidSetup();
 
-
+    // Radio setup
+    radioInit(RADIO_RXPQ_MAX_SIZE, RADIO_TXPQ_MAX_SIZE);
+#define SETTINGS_USE_FLASH_RADIO_CONFIG //move to settings.h in the future
+#ifdef SETTINGS_USE_FLASH_RADIO_CONFIG
+    robotConfig config = malloc(sizeof(robotConfigStruct_t));
+    robotConfigGet(config);
+    radioSetChannel(config->radio_channel);
+    radioSetSrcAddr(config->radio_src_addr);
+    radioSetSrcPanID(config->radio_pan_addr);
+#else
+    radioSetChannel(RADIO_CHANNEL);
+    radioSetSrcAddr(RADIO_SRC_ADDR);
+    radioSetSrcPanID(RADIO_PAN_ADDR);
+#endif
 
     LED_1 = 0;
     LED_3 = 1;

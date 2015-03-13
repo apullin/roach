@@ -26,7 +26,8 @@
 #include "telem.h"
 
 #include <stdlib.h> // for malloc
-#include "init.h"  // for Timer1
+#include "init.h"
+#include "robot_config.h"  // for Timer1
 
 
 #define MC_CHANNEL_PWM1     1
@@ -67,6 +68,7 @@ int measLast1[NUM_PIDS];
 int measLast2[NUM_PIDS];
 int bemf[NUM_PIDS];
 
+robotConfig config;
 
 // -------------------------------------------
 // called from main()
@@ -81,20 +83,24 @@ void pidSetup() {
 
     lastMoveTime = 0;
 
-    //TODO: This should be generalized fo there is no sense of "left" and "right" here
-    pidObjs[LEFT_LEGS_PID_NUM].output_channel  = LEFT_LEGS_TIH_CHAN;
-    pidObjs[LEFT_LEGS_PID_NUM].p_state_flip    = LEFT_LEGS_ENC_FLIP;
-    pidObjs[LEFT_LEGS_PID_NUM].encoder_num     = LEFT_LEGS_ENC_NUM;
-    pidObjs[LEFT_LEGS_PID_NUM].pwm_flip        = LEFT_LEGS_PWM_FLIP;
+    config = malloc(sizeof(robotConfigStruct_t));
 
-    pidObjs[RIGHT_LEGS_PID_NUM].output_channel = RIGHT_LEGS_TIH_CHAN;
-    pidObjs[RIGHT_LEGS_PID_NUM].p_state_flip   = RIGHT_LEGS_FLIP;
-    pidObjs[RIGHT_LEGS_PID_NUM].encoder_num    = RIGHT_LEGS_ENC_NUM;
-    pidObjs[RIGHT_LEGS_PID_NUM].pwm_flip       = RIGHT_LEGS_PWM_FLIP;
+    //TODO: This should be generalized fo there is no sense of "left" and "right" here
+    unsigned char num = config->left_legs_pid_num;
+    pidObjs[num].output_channel  = config->left_legs_tih_chan;
+    pidObjs[num].p_state_flip    = config->left_legs_enc_flip;
+    pidObjs[num].encoder_num     = config->left_legs_enc_num;
+    pidObjs[num].pwm_flip        = config->left_legs_pwm_flip;
+
+    num = config->right_legs_pid_num;
+    pidObjs[num].output_channel = config->right_legs_tih_chan;
+    pidObjs[num].p_state_flip   = config->right_legs_flip;
+    pidObjs[num].encoder_num    = config->right_legs_enc_num;
+    pidObjs[num].pwm_flip       = config->right_legs_pwm_flip;
 
     // Initialize PID structures before starting Timer1
-    pidSetInput(LEFT_LEGS_PID_NUM, 0);
-    pidSetInput(RIGHT_LEGS_PID_NUM, 0);
+    pidSetInput(config->left_legs_pid_num, 0);
+    pidSetInput(config->right_legs_pid_num, 0);
 
     EnableIntT1; // turn on pid interrupts
 
