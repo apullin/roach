@@ -226,19 +226,19 @@ class Velociroach:
             i = labels.index(label)
             telemDict[label] = imudata[i]
         metadata = {}
-        metadata("freqL") = 5
-        metadata("freqR") = 6
-        metadata("phase") = 180.0
-        metadata("deltasLeft") = self.currentGait.deltasLeft
-        metadata("deltasRight") = self.currentGait.deltasRight
-        metadata("leadIn") = self.leadIn
-        metadata("leadOut") = self.leadIn
-        metadata("motorGains") = self.motorGains
+        metadata["freqL"] = self.currentGait.freqL
+        metadata["freqR"] = self.currentGait.freqR
+        metadata["phase"] = self.currentGait.phase
+        metadata["deltasLeft"] = self.currentGait.deltasLeft
+        metadata["deltasRight"] = self.currentGait.deltasRight
+        metadata["leadIn"] = self.leadIn
+        metadata["leadOut"] = self.leadIn
+        metadata["motorGains"] = self.motorGains
         today = time.localtime()
         date = str(today.tm_year)+'/'+str(today.tm_mon)+'/'+str(today.tm_mday)+'  '
         date = date + str(today.tm_hour) +':' + str(today.tm_min)+':'+str(today.tm_sec)
-        metadata("recTime") = date
-        metadata("notes") = ""
+        metadata["recTime"] = date
+        metadata["notes"] = ""
         
         jsonTelem = {"metadata":metadata , "telemetryData":telemDict}
         fileout.write( json.dumps(jsonTelem) )
