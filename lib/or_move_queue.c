@@ -4,10 +4,12 @@
 
  */
 
+#include <xc.h>
+
 #include "queue.h"
 #include "or_move_queue.h"
 #include "pid.h"
-#include "p33Fxxxx.h"
+
 //#include <stdio.h>      // for NULL
 #include <stdlib.h>     // for malloc
 

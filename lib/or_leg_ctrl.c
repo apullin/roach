@@ -2,24 +2,29 @@
 
 //leg_ctrl.c
 
-#include "pid.h"
-#include "or_leg_ctrl.h"
-//#include "motor_ctrl.h"
-#include "tih.h"
-#include "timer.h"
-#include "adc_pid.h"
+#include<xc.h>
+//dsPIC library includes
 #include "pwm.h"
 #include "adc.h"
-#include "or_move_queue.h"
-//#include "tail_queue.h"
+#include "timer.h"
 #include "math.h"
-//#include "steering.h"
-//#include "sys_service.h"
-#include "utils.h"
-#include "settings.h"
 #include <dsp.h>
 #include <stdlib.h> // for malloc
 #include <limits.h> //for INT_MAX, etc
+//Library includes
+#include "pid.h"
+#include "or_leg_ctrl.h"
+#include "tih.h"
+#include "adc_pid.h"
+#include "or_move_queue.h"
+#include "utils.h"
+#include "settings.h"
+
+//Vestigial includes removed for application to RoACH/VelociRoACH project
+//#include "motor_ctrl.h"
+//#include "tail_queue.h"
+//#include "steering.h"
+//#include "sys_service.h"
 
 #define ABS(my_val) ((my_val) < 0) ? -(my_val) : (my_val)
 
