@@ -40,6 +40,8 @@
         <itemPath>../lib/pid-ip2.5.h</itemPath>
         <itemPath>../lib/tests.h</itemPath>
         <itemPath>../lib/vr_telem.h</itemPath>
+        <itemPath>../lib/or_leg_ctrl.h</itemPath>
+        <itemPath>../lib/or_move_queue.h</itemPath>
       </logicalFolder>
       <itemPath>source/cmd.h</itemPath>
     </logicalFolder>
@@ -80,6 +82,8 @@
         <itemPath>../lib/pid-ip2.5.c</itemPath>
         <itemPath>../lib/tests.c</itemPath>
         <itemPath>../lib/vr_telem.c</itemPath>
+        <itemPath>../lib/or_leg_ctrl.c</itemPath>
+        <itemPath>../lib/or_move_queue.c</itemPath>
       </logicalFolder>
       <itemPath>source/cmd.c</itemPath>
       <itemPath>source/main.c</itemPath>
