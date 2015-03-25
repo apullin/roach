@@ -51,9 +51,9 @@ pidVelLUT pidVel[NUM_PIDS*NUM_BUFF];
 pidVelLUT* activePID[NUM_PIDS]; //Pointer arrays for stride buffering
 pidVelLUT* nextPID[NUM_PIDS];
 
-#define T1_MAX 0xffffff  // max before rollover of 1 ms counter
+//#define T1_MAX 0xffffff  // max before rollover of 1 ms counter
 // may be glitch in longer missions at rollover
-volatile unsigned long t1_ticks;
+//volatile unsigned long t1_ticks;
 unsigned long lastMoveTime;
 int seqIndex;
 
@@ -66,6 +66,21 @@ unsigned int offsetAccumulatorCounter;
 int measLast1[NUM_PIDS];
 int measLast2[NUM_PIDS];
 int bemf[NUM_PIDS];
+
+
+/////////        Leg Control ISR       ////////
+/////////  Installed to Timer1 @ 1Khz  ////////
+
+static void SetupTimer1(void) {
+    unsigned int T1CON1value, T1PERvalue;
+    T1CON1value = T1_ON & T1_SOURCE_INT & T1_PS_1_1 & T1_GATE_OFF &
+            T1_SYNC_EXT_OFF & T1_IDLE_CON;  //correct
+
+    T1PERvalue = 0x9C40; //clock period = 0.001s = (T1PERvalue/FCY) (1KHz)
+    int retval;
+    retval = sysServiceConfigT1(T1CON1value, T1PERvalue, T1_INT_PRIOR_5 & T1_INT_ON);
+    //TODO: Put a soft trap here, conditional on retval
+}
 
 
 // -------------------------------------------
@@ -334,11 +349,12 @@ void EmergencyStop(void) {
 
 /* update setpoint  only leg which has run_time + start_time > t1_ticks */
 /* turn off when all PIDs have finished */
-static volatile unsigned char interrupt_count = 0;
-static volatile unsigned char telemetry_count = 0;
+//static volatile unsigned char interrupt_count = 0;
+//static volatile unsigned char telemetry_count = 0;
 extern volatile MacPacket uart_tx_packet;
 extern volatile unsigned char uart_tx_flag;
 
+/*
 void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
     int j;
     LED_3 = 1;
@@ -357,37 +373,55 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
     }        //PID controller update
     else if (interrupt_count == 5) {
         interrupt_count = 0;
+*/
 
-        if (t1_ticks == T1_MAX) t1_ticks = 0;
-        t1_ticks++;
-        pidGetState(); // always update state, even if motor is coasting
-        for (j = 0; j < NUM_PIDS; j++) {
-            // only update tracking setpoint if time has not yet expired
-            if (pidObjs[j].onoff) {
-                if (pidObjs[j].timeFlag) {
-                    if (pidObjs[j].start_time + pidObjs[j].run_time >= t1_ticks) {
-                        pidGetSetpoint(j);
-                    }
-                    if (t1_ticks > lastMoveTime) { // turn off if done running all legs
-                        pidObjs[0].onoff = 0;
-                        pidObjs[1].onoff = 0;
-                    }
-                }
-                else {
+void pidip25ServiceRoutine() {
+
+
+    pidGetState(); // always update state, even if motor is coasting
+    for (j = 0; j < NUM_PIDS; j++) {
+        // only update tracking setpoint if time has not yet expired
+        if (pidObjs[j].onoff) {
+            if (pidObjs[j].timeFlag) {
+                if (pidObjs[j].start_time + pidObjs[j].run_time >= t1_ticks) {
                     pidGetSetpoint(j);
                 }
+                if (t1_ticks > lastMoveTime) { // turn off if done running all legs
+                    pidObjs[0].onoff = 0;
+                    pidObjs[1].onoff = 0;
+                }
+            } else {
+                pidGetSetpoint(j);
             }
         }
-        if (pidObjs[0].mode == PID_MODE_CONTROLED) {
-            pidSetControl();
-        } else if (pidObjs[0].mode == PID_MODE_PWMPASS) {
-            tiHSetDC(pidObjs[0].output_channel, pidObjs[0].pwmDes);
-            tiHSetDC(pidObjs[1].output_channel, pidObjs[1].pwmDes);
-        }
-
     }
+    if (pidObjs[0].mode == PID_MODE_CONTROLED) {
+        pidSetControl();
+    } else if (pidObjs[0].mode == PID_MODE_PWMPASS) {
+        tiHSetDC(pidObjs[0].output_channel, pidObjs[0].pwmDes);
+        tiHSetDC(pidObjs[1].output_channel, pidObjs[1].pwmDes);
+    }
+
     LED_3 = 0;
-    _T1IF = 0;
+
+
+    //Previous method: 5khz timer with 5 time slices
+    //Instead, functions wil just be called in a reasonable order here.
+    //This is NOT good form; each one of these calls should be in their own
+    //module, and install with sysServiceT1
+
+
+    //This used to be done in 1 of 5 time slices of a 5khz interrupt
+    amsEncoderStartAsyncRead();
+
+    //This used to be done in 1 of 5 time slices of a 5khz interrupt
+    //This should be moved to an IMU module
+    mpuBeginUpdate();
+
+    //This used to be done in 1 of 5 time slices of a 5khz interrupt
+    //This should be moved to a telem module.
+    telemSaveNow();
+
 }
 
 // update desired velocity and position tracking setpoints for each leg
@@ -398,7 +432,7 @@ void pidGetSetpoint(int j) {
     // update desired position between setpoints, scaled by 256
     pidObjs[j].interpolate += (long) activePID[j]->vel[index];
 
-    if (t1_ticks >= pidObjs[j].expire) { // time to reach previous setpoint has passed
+    if (getT1_ticks() >= pidObjs[j].expire) { // time to reach previous setpoint has passed
         pidObjs[j].interpolate = 0;
         pidObjs[j].p_input += activePID[j]->delta[index]; //update to next set point
         pidObjs[j].index++;
