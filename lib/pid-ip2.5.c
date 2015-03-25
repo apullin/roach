@@ -55,18 +55,14 @@ pidVelLUT* nextPID[NUM_PIDS];
 // may be glitch in longer missions at rollover
 //volatile unsigned long t1_ticks;
 unsigned long lastMoveTime;
-int seqIndex;
-
-//for battery voltage:
-char calib_flag = 0; // flag is set if doing calibration
-long offsetAccumulatorL, offsetAccumulatorR;
-unsigned int offsetAccumulatorCounter;
 
 // 2 last readings for median filter
 int measLast1[NUM_PIDS];
 int measLast2[NUM_PIDS];
 int bemf[NUM_PIDS];
 
+//Private functions
+static void setInitialOffset(unsigned int samples);
 
 /////////        Leg Control ISR       ////////
 /////////  Installed to Timer1 @ 1Khz  ////////
@@ -113,7 +109,7 @@ void pidSetup() {
 
     EnableIntT1; // turn on pid interrupts
 
-    calibBatteryOffset(100); //???This is broken for 2.5
+    setInitialOffset(16); //2ms delay between samples, so 32ms calib time
 }
 
 
@@ -194,6 +190,7 @@ void initPIDObjPos(pidPos *pid, int Kp, int Ki, int Kd, int Kaw, int ff) {
 
     pid->p_state_flip = 0; //default to no flip
     pid->output_channel = 0;
+    pid->inputOffset = 0;
 }
 
 
@@ -278,54 +275,6 @@ void pidZeroPos(int pid_num) {
 }
 
 
-// calibrate A/D offset, using PWM synchronized A/D reads inside 
-// timer 1 interrupt loop
-// BATTERY CHANGED FOR IP2.5 ***** need to fix
-
-void calibBatteryOffset(int spindown_ms) {
-    long temp; // could be + or -
-    unsigned int battery_voltage;
-    // save current PWM config
-    int tempPDC1 = PDC1;
-    int tempPDC2 = PDC2;
-    PDC1 = 0;
-    PDC2 = 0; /* SFR for PWM? */
-
-    // save current PID status, and turn off PID control
-    short tempPidObjsOnOff[NUM_PIDS];
-    tempPidObjsOnOff[0] = pidObjs[0].onoff;
-    tempPidObjsOnOff[1] = pidObjs[1].onoff;
-    pidObjs[0].onoff = 0;
-    pidObjs[1].onoff = 0;
-
-    delay_ms(spindown_ms); //motor spin-down
-    LED_RED = 1;
-    offsetAccumulatorL = 0;
-    offsetAccumulatorR = 0;
-    offsetAccumulatorCounter = 0; // updated inside servo loop
-    calib_flag = 1; // enable calibration
-    while (offsetAccumulatorCounter < 100); // wait for 100 samples
-    calib_flag = 0; // turn off calibration
-    battery_voltage = adcGetVbatt();
-    //Left
-    temp = offsetAccumulatorL;
-    temp = temp / (long) offsetAccumulatorCounter;
-    pidObjs[0].inputOffset = (int) temp;
-
-    //Right
-    temp = offsetAccumulatorR;
-    temp = temp / (long) offsetAccumulatorCounter;
-    pidObjs[1].inputOffset = (int) temp;
-
-    LED_RED = 0;
-    // restore PID values
-    PDC1 = tempPDC1;
-    PDC2 = tempPDC2;
-    pidObjs[0].onoff = tempPidObjsOnOff[0];
-    pidObjs[1].onoff = tempPidObjsOnOff[1];
-}
-
-
 /*****************************************************************************************/
 /*****************************************************************************************/
 /*********************** Stop Motor and Interrupts *********************************************/
@@ -352,7 +301,9 @@ void EmergencyStop(void) {
 //static volatile unsigned char interrupt_count = 0;
 //static volatile unsigned char telemetry_count = 0;
 extern volatile MacPacket uart_tx_packet;
-extern volatile unsigned char uart_tx_flag;
+extern volatile unsigned char uart_tx_flag; //TODO: separate this UART kruft
+
+//TODO: Port sysService module, rather than using 5Khz interrupt
 
 /*
 void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
@@ -480,13 +431,6 @@ void pidGetState() {
     unsigned int encOffset;
 
     unsigned long time_start, time_end;
-    //	calib_flag = 0;  //BEMF disable
-    // get diff amp offset with motor off at startup time
-    if (calib_flag) {
-        offsetAccumulatorL += adcGetMotorA();
-        offsetAccumulatorR += adcGetMotorB();
-        offsetAccumulatorCounter++;
-    }
 
     // choose velocity estimate
 #if VEL_BEMF == 0    // use first difference on position for velocity estimate
@@ -496,9 +440,11 @@ void pidGetState() {
     }
 #endif
 
+    //TODO: Change BEMF getter functions to function pointers, make settable
     time_start = sclockGetTime();
     bemf[0] = pidObjs[0].inputOffset - adcGetMotorA(); // watch sign for A/D? unsigned int -> signed?
     bemf[1] = pidObjs[1].inputOffset - adcGetMotorB(); // MotorB
+
     // only works to +-32K revs- might reset after certain number of steps? Should wrap around properly
     for (i = 0; i < NUM_PIDS; i++) {
         enc_num = pidObjs[i].encoder_num;
@@ -701,4 +647,30 @@ void pidSetPWMDes(unsigned int channel, int pwm){
     if (channel < NUM_PIDS) {
         pidObjs[channel].pwmDes = pwm;
     }
+}
+
+
+static void setInitialOffset(unsigned int samples) {
+    //For IP2.5, it is expected that the offsets for idling motors should be about 511 ADC counts
+    // See wiki page on circuit for more details
+
+    int i;
+
+    //Offsets are expected to be ~511 counts for motor stationary.
+    long offsets[NUM_PIDS];
+
+    delay_ms(10); //Settling time.
+
+    //Accumulate 8 readings to average out
+    for (i = 0; i < samples; i++) {
+        offsets[0] += adcGetMotorA();
+        offsets[1] += adcGetMotorB();
+        delay_ms(2);
+    }
+
+    for(i = 0; i<NUM_PIDS; i++){
+        offsets[i] = offsets[i] >> 3; // fast div by 8
+        pidObjs[i].inputOffset = offsets[i]; //store
+    }
+
 }
