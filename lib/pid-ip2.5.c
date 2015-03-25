@@ -8,14 +8,18 @@
  * modified Jan. 2012 to include median filter on back emf
  * modified Jan. 2013 to include AMS Hall encoder, and MPU 6000 gyro
  */
+
 #include <xc.h>
+//dsPIC library
 #include "timer.h"
+#include "pwm.h"
+#include "adc.h"
+#include <stdlib.h> // for malloc
+//imageproc-lib and library includes
 #include "pid-ip2.5.h"
 #include "dfmem.h"
 #include "adc_pid.h"
-#include "pwm.h"
 #include "led.h"
-#include "adc.h"
 #include "sclock.h"
 #include "ams-enc.h"
 #include "tih.h"
@@ -24,9 +28,7 @@
 #include "ppool.h"
 #include "dfmem.h"
 #include "telem.h"
-
-#include <stdlib.h> // for malloc
-#include "init.h"  // for Timer1
+#include "sys_service.h"
 
 
 #define MC_CHANNEL_PWM1     1
@@ -60,6 +62,11 @@ unsigned long lastMoveTime;
 int measLast1[NUM_PIDS];
 int measLast2[NUM_PIDS];
 int bemf[NUM_PIDS];
+
+int medianFilter3(int*);
+
+//Service routine function
+static void pidip25ServiceRoutine();
 
 //Private functions
 static void setInitialOffset(unsigned int samples);
@@ -107,9 +114,12 @@ void pidSetup() {
     pidSetInput(LEFT_LEGS_PID_NUM, 0);
     pidSetInput(RIGHT_LEGS_PID_NUM, 0);
 
-    EnableIntT1; // turn on pid interrupts
-
     setInitialOffset(16); //2ms delay between samples, so 32ms calib time
+
+    //EnableIntT1; // turn on pid interrupts
+    SetupTimer1(); // Timer 1 @ 1 Khz
+    int retval;
+    retval = sysServiceInstallT1(pidip25ServiceRoutine);
 }
 
 
@@ -191,6 +201,8 @@ void initPIDObjPos(pidPos *pid, int Kp, int Ki, int Kd, int Kaw, int ff) {
     pid->p_state_flip = 0; //default to no flip
     pid->output_channel = 0;
     pid->inputOffset = 0;
+
+    pid->bemfHist[0] = 0; pid->bemfHist[1] = 0; pid->bemfHist[2] = 0;
 }
 
 
@@ -202,7 +214,7 @@ void pidSetInput(int pid_num, int input_val) {
     /*      ******   use velocity setpoint + throttle for compatibility between Hall and Pullin code *****/
     /* otherwise, miss first velocity set point */
     pidObjs[pid_num].v_input = input_val + (int) (((long) pidVel[pid_num].vel[0] * K_EMF) >> 8); //initialize first velocity ;
-    pidObjs[pid_num].start_time = t1_ticks;
+    pidObjs[pid_num].start_time = getT1_ticks();
     //zero out running PID values
     pidObjs[pid_num].i_error = 0;
     pidObjs[pid_num].p = 0;
@@ -230,7 +242,7 @@ void pidSetInput(int pid_num, int input_val) {
 void pidStartTimedTrial(unsigned int run_time) {
     unsigned long temp;
 
-    temp = t1_ticks; // need atomic read due to interrupt
+    temp = getT1_ticks(); // need atomic read due to interrupt
     pidObjs[0].run_time = run_time;
     pidObjs[1].run_time = run_time;
     pidObjs[0].start_time = temp;
@@ -252,12 +264,14 @@ void pidSetGains(int pid_num, int Kp, int Ki, int Kd, int Kaw, int ff) {
 
 void pidOn(int pid_num) {
     pidObjs[pid_num].onoff = PID_ON;
-    t1_ticks = 0;
+    //t1_ticks = 0;
+    //sysService does not support timer zeroing
 }
 
 void pidOff(int pid_num) {
     pidObjs[pid_num].onoff = PID_OFF;
-    t1_ticks = 0;
+    //t1_ticks = 0;
+    //sysService does not support timer zeroing
 }
 
 // zero position setpoint for both motors (avoids big offset errors)
@@ -303,31 +317,12 @@ void EmergencyStop(void) {
 extern volatile MacPacket uart_tx_packet;
 extern volatile unsigned char uart_tx_flag; //TODO: separate this UART kruft
 
-//TODO: Port sysService module, rather than using 5Khz interrupt
 
-/*
-void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
-    int j;
-    LED_3 = 1;
-    interrupt_count++;
+static void pidip25ServiceRoutine() {
 
-    //Telemetry save, at 1Khz
-    //TODO: Break coupling between PID module and telemetry triggering
-    if (interrupt_count == 3) {
-        telemSaveNow();
-    }
-    //Update IMU
-    //TODO: Break coupling between PID module and IMU update
-    if (interrupt_count == 4) {
-        mpuBeginUpdate();
-        amsEncoderStartAsyncRead();
-    }        //PID controller update
-    else if (interrupt_count == 5) {
-        interrupt_count = 0;
-*/
+    unsigned long t1_ticks = getT1_ticks();
 
-void pidip25ServiceRoutine() {
-
+    int j = 0;
 
     pidGetState(); // always update state, even if motor is coasting
     for (j = 0; j < NUM_PIDS; j++) {
@@ -417,9 +412,6 @@ void checkSwapBuff(int j) {
     }
 }
 
-// select either back emf or backwd diff for vel est
-
-#define VEL_BEMF 0
 
 /* update state variables including motor position and velocity */
 
@@ -433,7 +425,7 @@ void pidGetState() {
     unsigned long time_start, time_end;
 
     // choose velocity estimate
-#if VEL_BEMF == 0    // use first difference on position for velocity estimate
+#ifdef VEL_BEMF    // use first difference on position for velocity estimate
     long oldpos[NUM_PIDS], velocity;
     for (i = 0; i < NUM_PIDS; i++) {
         oldpos[i] = pidObjs[i].p_state;
@@ -447,6 +439,7 @@ void pidGetState() {
 
     // only works to +-32K revs- might reset after certain number of steps? Should wrap around properly
     for (i = 0; i < NUM_PIDS; i++) {
+
         enc_num = pidObjs[i].encoder_num;
         
         encPosition = amsEncoderGetPos(enc_num);
@@ -468,7 +461,7 @@ void pidGetState() {
     time_end = sclockGetTime() - time_start;
 
 
-#if VEL_BEMF == 0    // use first difference on position for velocity estimate
+#ifndef VEL_BEMF    // use first difference on position for velocity estimate
     for (i = 0; i < NUM_PIDS; i++) {
         velocity = pidObjs[i].p_state - oldpos[i]; // Encoder ticks per ms
         if (velocity > 0x7fff) velocity = 0x7fff; // saturate to int
@@ -479,61 +472,26 @@ void pidGetState() {
 
     // choose velocity estimate
 
-#if VEL_BEMF == 1
-    int measurements[NUM_PIDS];
-    // Battery: AN0, MotorA AN8, MotorB AN9, MotorC AN10, MotorD AN11
-    measurements[0] = pidObjs[0].inputOffset - adcGetMotorA(); // watch sign for A/D? unsigned int -> signed?
-    measurements[1] = pidObjs[1].inputOffset - adcGetMotorB(); // MotorB
+#ifdef VEL_BEMF
 
+    //Rotate BEMF history
+    pidObjs[0]->bemfHist[2] = pidObjs[0]->bemfHist[1];
+    pidObjs[0]->bemfHist[1] = pidObjs[0]->bemfHist[0];
+
+    pidObjs[1]->bemfHist[2] = pidObjs[0]->bemfHist[1];
+    pidObjs[1]->bemfHist[1] = pidObjs[0]->bemfHist[0];
+
+    pidObjs[0]->bemfHist[0] = bemf[0];
+    pidObjs[1]->bemfHist[0] = bemf[1];
 
     //Get motor speed reading on every interrupt - A/D conversion triggered by PWM timer to read Vm when transistor is off
     // when motor is loaded, sometimes see motor short so that  bemf=offset voltage
     // get zero sometimes - open circuit brush? Hence try median filter
-    for (i = 0; i < 2; i++) // median filter
-    {
-        if (measurements[i] > measLast1[i]) {
-            if (measLast1[i] > measLast2[i]) {
-                bemf[i] = measLast1[i];
-            }// middle value is median
-            else // middle is smallest
-            {
-                if (measurements[i] > measLast2[i]) {
-                    bemf[i] = measLast2[i];
-                }// 3rd value is median
-                else {
-                    bemf[i] = measurements[i];
-                } // first value is median
-            }
-        }
-        else // first is not biggest
-        {
-            if (measLast1[i] < measLast2[i]) {
-                bemf[i] = measLast1[i];
-            }// middle value is median
-            else // middle is biggest
-            {
-                if (measurements[i] < measLast2[i]) {
-                    bemf[i] = measLast2[i];
-                }// 3rd value is median
-                else {
-                    bemf[i] = measurements[i]; // first value is median
-                }
-            }
-        }
-    } // end for
-    // store old values
-    measLast2[0] = measLast1[0];
-    measLast1[0] = measurements[0];
-    measLast2[1] = measLast1[1];
-    measLast1[1] = measurements[1];
-    pidObjs[0].v_state = bemf[0];
-    pidObjs[1].v_state = bemf[1]; //  might also estimate from deriv of pos data
-    //if((measurements[0] > 0) || (measurements[1] > 0)) {
-    if ((measurements[0] > 0)) {
-        LED_BLUE = 1;
-    } else {
-        LED_BLUE = 0;
-    }
+    
+
+    pidObjs[0].v_state = medianFilter3(pidObjs[1]->bemfHist);
+    pidObjs[1].v_state = medianFilter3(pidObjs[1]->bemfHist);
+
 #endif
 }
 
@@ -673,4 +631,29 @@ static void setInitialOffset(unsigned int samples) {
         pidObjs[i].inputOffset = offsets[i]; //store
     }
 
+}
+
+//Poor implementation of a median filter for a 3-array of values
+int medianFilter3(int* a) {
+    int b[3] = {a[0], a[1], a[2]};
+    int temp;
+
+    //Implemented through 3 compare-exchange operations, increasing index
+    if (b[0] > b[1]) {
+        temp = b[1];
+        b[1] = b[0];
+        b[0] = temp;
+    }
+    if (a[0] > a[2]) {
+        temp = b[2];
+        b[2] = b[0];
+        b[0] = temp;
+    }
+    if (a[1] > a[2]) {
+        temp = b[2];
+        b[2] = b[1];
+        b[1] = temp;
+    }
+
+    return b[1];
 }

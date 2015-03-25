@@ -69,6 +69,7 @@ typedef struct
         unsigned char output_channel;   //TODO: These should be moved to a "leg control" module
         unsigned char encoder_num;
         unsigned char pwm_flip;
+        int bemfHist[3];
 } pidPos;
 
 // structure for velocity control of leg cycle
