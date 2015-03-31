@@ -34,7 +34,6 @@
       <logicalFolder name="lib" displayName="lib" projectFiles="true">
         <itemPath>../lib/cmd_const.h</itemPath>
         <itemPath>../lib/consts.h</itemPath>
-        <itemPath>../lib/init.h</itemPath>
         <itemPath>../lib/interrupts.h</itemPath>
         <itemPath>../lib/led.h</itemPath>
         <itemPath>../lib/pid-ip2.5.h</itemPath>
@@ -76,7 +75,6 @@
         <itemPath>../../imageproc-lib/traps.c</itemPath>
       </logicalFolder>
       <logicalFolder name="lib" displayName="lib" projectFiles="true">
-        <itemPath>../lib/init.c</itemPath>
         <itemPath>../lib/interrupts.c</itemPath>
         <itemPath>../lib/pid-ip2.5.c</itemPath>
         <itemPath>../lib/tests.c</itemPath>
@@ -248,7 +246,7 @@
         <property key="fast-math" value="false"/>
         <property key="generic-16-bit" value="false"/>
         <property key="legacy-libc" value="false"/>
-        <property key="oXC16glb-macros" value="__IMAGEPROC25;VEL_BEMF"/>
+        <property key="oXC16glb-macros" value="__IMAGEPROC25"/>
         <property key="output-file-format" value="elf"/>
         <property key="relaxed-math" value="false"/>
         <property key="save-temps" value="false"/>
