@@ -425,12 +425,13 @@ void pidGetState() {
     unsigned long time_start, time_end;
 
     // choose velocity estimate
-#ifdef VEL_BEMF    // use first difference on position for velocity estimate
+#ifndef VEL_BEMF    // use first difference on position for velocity estimate
     long oldpos[NUM_PIDS], velocity;
     for (i = 0; i < NUM_PIDS; i++) {
         oldpos[i] = pidObjs[i].p_state;
     }
 #endif
+
 
     //TODO: Change BEMF getter functions to function pointers, make settable
     time_start = sclockGetTime();
