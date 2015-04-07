@@ -25,6 +25,7 @@
 #define CMD_PID_STOP_MOTORS         0x92         
 #define CMD_SET_PHASE               0x93         
 #define CMD_SET_MOTOR_MODE          0x94
+#define CMD_SET_AMS_VIBE             0x96
 // Redefine
 
 void cmdSetup(void);
@@ -87,6 +88,15 @@ typedef struct{
 typedef struct{
     int32_t offset;
 } _args_cmdSetPhase;
+
+//cmdSetAMSVibe
+typedef struct{
+	int channel;
+        int incr;
+        int amplitude;
+        int offset;
+        int phase;
+} _args_cmdSetAMSVibe;
 
 
 #endif // __CMD_H

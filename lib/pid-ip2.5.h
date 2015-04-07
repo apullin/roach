@@ -135,7 +135,6 @@ unsigned char* pidGetTelemetry(void);
 void pidOn(int pid_num);
 void pidOff(int pid_num);
 void pidZeroPos(int pid_num);
-void calibBatteryOffset(int spindown_ms);
 long pidGetPState(unsigned int channel);
 void pidSetPInput(unsigned int channel, long p_input);
 void pidStartMotor(unsigned int channel);

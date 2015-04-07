@@ -102,9 +102,14 @@ def xbee_received(packet):
                 for r in shared.ROBOTS:
                     if r.DEST_ADDR_int == src_addr:
                         if telem_index <= r.numSamples:
-                            r.telemtryData[telem_index] = datum
+                            try:
+                                r.telemetryData[telem_index] = datum
+                            except IndexError:
+                                print "\n\nBad index, telem_index=",telem_index,", numSamples=",r.numSamples
+                                print "len(r.telemetryData) =",len(r.telemetryData)
+                                print traceback.format_exc()
                         else:
-                            print "Got out of range telem_index =",telem_index
+                            print "Got out of range telem_index =",telem_index," ; numSamples =",r.numSamples
         
         # ERASE_SECTORS
         elif type == command.ERASE_SECTORS:

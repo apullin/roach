@@ -6,7 +6,7 @@ Contents of this file are copyright Andrew Pullin, 2013
 
 """
 from lib import command
-import time,sys,os,traceback
+import time,sys,os
 import serial
 
 # Path to imageproc-settings repo must be added
@@ -18,18 +18,21 @@ from velociroach import *
 
 
 ###### Operation Flags ####
-RESET_R1 = True  
-EXIT_WAIT   = False
+RESET_R1     = True  
+SAVE_DATA_R1 = True  # CURRENTLY BROKEN HERE
+EXIT_WAIT    = False
 
 def main():    
     xb = setupSerial(shared.BS_COMPORT, shared.BS_BAUDRATE)
     
     R1 = Velociroach('\x20\x52', xb)
+    R1.RESET = RESET_R1
+    R1.SAVE_DATA = SAVE_DATA_R1
     
     shared.ROBOTS = [R1] #This is neccesary so callbackfunc can reference robots
     shared.xb = xb           #This is neccesary so callbackfunc can halt before exit
-    
-    if RESET_R1:
+
+    if R1.RESET:
         R1.reset()
         time.sleep(0.35)
     
@@ -39,39 +42,50 @@ def main():
     #Verify all robots can be queried
     verifyAllQueried()  #exits on failure
 
-    numToDL = raw_input("How many samples to download? ")
+    EXPERIMENT_RUN_TIME_MS     = 2000  #ms
+    EXPERIMENT_LEADIN_TIME_MS  = 0  #ms
+    EXPERIMENT_LEADOUT_TIME_MS = 0  #ms
     
-    if numToDL > 0:
+    if R1.SAVE_DATA:
+        R1.setupTelemetryDataTime(EXPERIMENT_LEADIN_TIME_MS + EXPERIMENT_RUN_TIME_MS + EXPERIMENT_LEADOUT_TIME_MS)
+    
+    raw_input("Press enter to start vibe...")
+    
+    if R1.SAVE_DATA:
+        R1.startTelemetrySave()
         
-        #allocate an array to write the downloaded telemetry data into
-        R1.numSamples = int(numToDL)
-        R1.telemetryData = [ [] ] * R1.numSamples
-        R1.clAnnounce()
-        print "Telemetry samples to save: ",R1.numSamples
+    print "len R1.telemetryData=",R1.numSamples
+    print "len(R1.telemetryData)=",len(R1.telemetryData)
+    
+    time.sleep(EXPERIMENT_LEADIN_TIME_MS/1000.0) #leadin
+    
+    ZERO_PHASE = 0
+    freqL = 10
+    freqR = 20
+    amp = 2000
+    R1.setAMSvibe(1, freqL, amp, offset = 0, phase = ZERO_PHASE)
+    R1.setAMSvibe(2, freqR, amp, offset = 500, phase = ZERO_PHASE)
+    time.sleep( R1.runtime/1000.0 )
+    R1.setAMSvibe(1, freqL, 0, phase = ZERO_PHASE)
+    R1.setAMSvibe(2, freqR, 0, phase = ZERO_PHASE)
+    
+    time.sleep(EXPERIMENT_LEADOUT_TIME_MS/1000.0) #leadout
+    
+    for r in shared.ROBOTS:
+        if r.SAVE_DATA:
+            raw_input("Press Enter to start telemetry read-back ...")
+            r.downloadTelemetry()
 
-        R1.runtime = 'UNKNOWN'
-        R1.moveq = 'UNKNOWN'
-
-        blank_gait = GaitConfig()
-        R1.currentGait = blank_gait
-        
-        # Pause and wait to start run, including leadin time
-        print ""
-        print "  ***************************"
-        print "  *******    READY    *******"
-        print "  ***************************"
-        raw_input("  Press ENTER to start download ...")
-        print ""
-
-        R1.downloadTelemetry(retry = False)
-
-    if EXIT_WAIT:  #Pause for a Ctrl + C , if desired
+    if EXIT_WAIT:  #Pause for a Ctrl + Cif specified
         while True:
-            time.sleep(0.1)
+            try:
+                time.sleep(1)
+            except KeyboardInterrupt:
+                break
 
     print "Done"
-
-
+	
+	
 #Provide a try-except over the whole main function
 # for clean exit. The Xbee module should have better
 # provisions for handling a clean exit, but it doesn't.

@@ -70,7 +70,7 @@ def main():
     # Some preparation is needed to cleanly save telemetry data
     for r in shared.ROBOTS:
         if r.SAVE_DATA:
-            #This needs to be done to prepare the .telemtryData variables in each robot object
+            #This needs to be done to prepare the .telemetryData variables in each robot object
             r.setupTelemetryDataTime(EXPERIMENT_LEADIN_TIME_MS + EXPERIMENT_RUN_TIME_MS + EXPERIMENT_LEADOUT_TIME_MS)
             r.eraseFlashMem()
         

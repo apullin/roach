@@ -45,9 +45,9 @@ class Velociroach:
     currentGait = GaitConfig()
 
     dataFileName = ''
-    telemtryData = [ [] ]
+    telemetryData = [ [] ]
     numSamples = 0
-    telemSampleFreq = 1000
+    telemSampleFreq = 1000.0
     VERBOSE = True
     telemFormatString = '%d' # single type forces all data to be saved in this type
     SAVE_DATA = False
@@ -168,15 +168,15 @@ class Velociroach:
         dlStart = time.time()
         shared.last_packet_time = dlStart
         #bytesIn = 0
-        while self.telemtryData.count([]) > 0:
+        while self.telemetryData.count([]) > 0:
             time.sleep(0.02)
-            dlProgress(self.numSamples - self.telemtryData.count([]) , self.numSamples)
+            dlProgress(self.numSamples - self.telemetryData.count([]) , self.numSamples)
             if (time.time() - shared.last_packet_time) > timeout:
                 print ""
                 #Terminal message about missed packets
                 self.clAnnounce()
                 print "Readback timeout exceeded"
-                print "Missed", self.telemtryData.count([]), "packets."
+                print "Missed", self.telemetryData.count([]), "packets."
                 #print "Didn't get packets:"
                 #for index,item in enumerate(self.telemtryData):
                 #    if item == []:
@@ -186,7 +186,7 @@ class Velociroach:
                 # Retry telem download            
                 if retry == True:
                     raw_input("Press Enter to restart telemetry readback ...")
-                    self.telemtryData = [ [] ] * self.numSamples
+                    self.telemetryData = [ [] ] * self.numSamples
                     self.clAnnounce()
                     print "Started telemetry download"
                     dlStart = time.time()
@@ -198,9 +198,9 @@ class Velociroach:
         dlEnd = time.time()
         dlTime = dlEnd - dlStart
         #Final update to download progress bar to make it show 100%
-        dlProgress(self.numSamples-self.telemtryData.count([]) , self.numSamples)
+        dlProgress(self.numSamples-self.telemetryData.count([]) , self.numSamples)
         #totBytes = 52*self.numSamples
-        totBytes = 52*(self.numSamples - self.telemtryData.count([]))
+        totBytes = 52*(self.numSamples - self.telemetryData.count([]))
         datarate = totBytes / dlTime / 1000.0
         print '\n'
         #self.clAnnounce()
@@ -220,7 +220,7 @@ class Velociroach:
         self.writeFileHeader()
         fileout = open(self.dataFileName, 'a')
         
-        sanitized = [item for item in self.telemtryData if item!= []];
+        sanitized = [item for item in self.telemetryData if item!= []];
         
         np.savetxt(fileout , np.array(sanitized), self.telemFormatString, delimiter = ',')
         fileout.close()
@@ -254,9 +254,10 @@ class Velociroach:
         # Take the longer number, between numSamples and runTime
         nrun = int(self.telemSampleFreq * runtime / 1000.0)
         self.numSamples = nrun
+        self.runtime = runtime
         
         #allocate an array to write the downloaded telemetry data into
-        self.telemtryData = [ [] ] * self.numSamples
+        self.telemetryData = [ [] ] * self.numSamples
         self.clAnnounce()
         print "Telemetry samples to save: ",self.numSamples
         
@@ -267,7 +268,7 @@ class Velociroach:
         self.numSamples = numSamples
         
         #allocate an array to write the downloaded telemetry data into
-        self.telemtryData = [ [] ] * self.numSamples
+        self.telemetryData = [ [] ] * self.numSamples
         self.clAnnounce()
         print "Telemetry samples to save: ",self.numSamples
     
@@ -303,6 +304,15 @@ class Velociroach:
     def zeroPosition(self):
         self.tx( 0, command.ZERO_POS, 'zero') #actual data sent in packet is not relevant
         time.sleep(0.1) #built-in holdoff, since reset apparently takes > 50ms
+        
+    def setAMSvibe(self, chan, freq, amp, offset = 0, phase = 0):
+        # freq should be a float in the range {0.0190738, 1250.}
+        # phase should be a float in the range {-1.0, 1.0}
+        freqconv = 52.428;   #THIS IS PROBABLY WRONG due to 1250hz / 1khz change for AMS version, ap 4/6/2015
+        inc = int(round(float(freqconv) * float(freq)))
+        phase_fixed = int(32768 * phase);
+        thrust = [chan, inc, amp, offset, phase_fixed]
+        self.tx( 0, command.SET_AMS_VIBE, pack('5h',*thrust))
         
 ########## Helper functions #################
 #TODO: find a home for these? Possibly in BaseStation class (pullin, abuchan)

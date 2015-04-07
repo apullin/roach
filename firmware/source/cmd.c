@@ -20,6 +20,7 @@
 #include "ams-enc.h"
 #include "carray.h"
 #include "telem.h"
+#include "ams-vibe.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -56,6 +57,7 @@ static unsigned char cmdStartTimedRun(unsigned char type, unsigned char status, 
 static unsigned char cmdStartTelemetry(unsigned char type, unsigned char status, unsigned char length, unsigned char *frame, unsigned int src_addr);
 static unsigned char cmdEraseSectors(unsigned char type, unsigned char status, unsigned char length, unsigned char *frame, unsigned int src_addr);
 static unsigned char cmdFlashReadback(unsigned char type, unsigned char status, unsigned char length, unsigned char *frame, unsigned int src_addr);
+static unsigned char cmdSetAMSVibe(unsigned char type, unsigned char status, unsigned char length, unsigned char *frame, unsigned int src_addr);
 /*-----------------------------------------------------------------------------
  *          Public functions
 -----------------------------------------------------------------------------*/
@@ -83,7 +85,7 @@ void cmdSetup(void) {
     cmd_func[CMD_SET_PHASE] = &cmdSetPhase;   
     cmd_func[CMD_START_TIMED_RUN] = &cmdStartTimedRun;
     cmd_func[CMD_PID_STOP_MOTORS] = &cmdPIDStopMotors;
-
+    cmd_func[CMD_SET_AMS_VIBE]  = &cmdSetAMSVibe;
 }
 
 void cmdPushFunc(MacPacket rx_packet) {
@@ -316,5 +318,17 @@ void cmdError() {
 }
 
 static unsigned char cmdNop(unsigned char type, unsigned char status, unsigned char length, unsigned char *frame, unsigned int src_addr) {
+    return 1;
+}
+
+static unsigned char cmdSetAMSVibe(unsigned char type, unsigned char status, unsigned char length, unsigned char *frame, unsigned int src_addr){
+    //Unpack unsigned char* frame into structured values
+    PKT_UNPACK(_args_cmdSetAMSVibe, argsPtr, frame);
+
+    amsVibeSetFrequency(argsPtr->channel, argsPtr->incr);
+    amsVibeSetPhase(argsPtr->channel, argsPtr->phase);
+    amsVibeSetAmplitude(argsPtr->channel, argsPtr->amplitude);
+    amsVibeSetOffset(argsPtr->channel, argsPtr->offset);
+
     return 1;
 }

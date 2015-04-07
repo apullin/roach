@@ -24,9 +24,10 @@
 #include "ppool.h"
 #include "dfmem.h"
 #include "telem.h"
+#include "ams-vibe.h"
 
 #include <stdlib.h> // for malloc
-#include "init.h"  // for Timer1
+//#include "init.h"  // for Timer1
 
 
 #define MC_CHANNEL_PWM1     1
@@ -57,16 +58,16 @@ volatile unsigned long t1_ticks;
 unsigned long lastMoveTime;
 int seqIndex;
 
-//for battery voltage:
-char calib_flag = 0; // flag is set if doing calibration
-long offsetAccumulatorL, offsetAccumulatorR;
-unsigned int offsetAccumulatorCounter;
+//Private functions
+static void setInitialOffset(unsigned int samples);
 
 // 2 last readings for median filter
 int measLast1[NUM_PIDS];
 int measLast2[NUM_PIDS];
 int bemf[NUM_PIDS];
 
+
+static void SetupTimer1();
 
 // -------------------------------------------
 // called from main()
@@ -96,9 +97,12 @@ void pidSetup() {
     pidSetInput(LEFT_LEGS_PID_NUM, 0);
     pidSetInput(RIGHT_LEGS_PID_NUM, 0);
 
+    setInitialOffset(16); //2ms delay between samples, so 32ms calib time
+    
+
     EnableIntT1; // turn on pid interrupts
 
-    calibBatteryOffset(100); //???This is broken for 2.5
+    
 }
 
 
@@ -263,52 +267,7 @@ void pidZeroPos(int pid_num) {
 }
 
 
-// calibrate A/D offset, using PWM synchronized A/D reads inside 
-// timer 1 interrupt loop
-// BATTERY CHANGED FOR IP2.5 ***** need to fix
 
-void calibBatteryOffset(int spindown_ms) {
-    long temp; // could be + or -
-    unsigned int battery_voltage;
-    // save current PWM config
-    int tempPDC1 = PDC1;
-    int tempPDC2 = PDC2;
-    PDC1 = 0;
-    PDC2 = 0; /* SFR for PWM? */
-
-    // save current PID status, and turn off PID control
-    short tempPidObjsOnOff[NUM_PIDS];
-    tempPidObjsOnOff[0] = pidObjs[0].onoff;
-    tempPidObjsOnOff[1] = pidObjs[1].onoff;
-    pidObjs[0].onoff = 0;
-    pidObjs[1].onoff = 0;
-
-    delay_ms(spindown_ms); //motor spin-down
-    LED_RED = 1;
-    offsetAccumulatorL = 0;
-    offsetAccumulatorR = 0;
-    offsetAccumulatorCounter = 0; // updated inside servo loop
-    calib_flag = 1; // enable calibration
-    while (offsetAccumulatorCounter < 100); // wait for 100 samples
-    calib_flag = 0; // turn off calibration
-    battery_voltage = adcGetVbatt();
-    //Left
-    temp = offsetAccumulatorL;
-    temp = temp / (long) offsetAccumulatorCounter;
-    pidObjs[0].inputOffset = (int) temp;
-
-    //Right
-    temp = offsetAccumulatorR;
-    temp = temp / (long) offsetAccumulatorCounter;
-    pidObjs[1].inputOffset = (int) temp;
-
-    LED_RED = 0;
-    // restore PID values
-    PDC1 = tempPDC1;
-    PDC2 = tempPDC2;
-    pidObjs[0].onoff = tempPidObjsOnOff[0];
-    pidObjs[1].onoff = tempPidObjsOnOff[1];
-}
 
 
 /*****************************************************************************************/
@@ -341,7 +300,7 @@ extern volatile unsigned char uart_tx_flag;
 
 void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
     int j;
-    LED_3 = 1;
+    //LED_3 = 1;
     interrupt_count++;
 
     //Telemetry save, at 1Khz
@@ -360,7 +319,7 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
 
         if (t1_ticks == T1_MAX) t1_ticks = 0;
         t1_ticks++;
-        pidGetState(); // always update state, even if motor is coasting
+    /*  pidGetState(); // always update state, even if motor is coasting
         for (j = 0; j < NUM_PIDS; j++) {
             // only update tracking setpoint if time has not yet expired
             if (pidObjs[j].onoff) {
@@ -384,9 +343,15 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
             tiHSetDC(pidObjs[0].output_channel, pidObjs[0].pwmDes);
             tiHSetDC(pidObjs[1].output_channel, pidObjs[1].pwmDes);
         }
-
+*/
+        //amsVibeUpdate();
+        pidObjs[0].p_input = amsVibeGetDC(0);
+        pidObjs[1].p_input = amsVibeGetDC(1);
+        //Do control on the position
+        //pidSetControl();
     }
-    LED_3 = 0;
+    //LED_3 = 0;
+
     _T1IF = 0;
 }
 
@@ -446,13 +411,6 @@ void pidGetState() {
     unsigned int encOffset;
 
     unsigned long time_start, time_end;
-    //	calib_flag = 0;  //BEMF disable
-    // get diff amp offset with motor off at startup time
-    if (calib_flag) {
-        offsetAccumulatorL += adcGetMotorA();
-        offsetAccumulatorR += adcGetMotorB();
-        offsetAccumulatorCounter++;
-    }
 
     // choose velocity estimate
 #if VEL_BEMF == 0    // use first difference on position for velocity estimate
@@ -667,4 +625,42 @@ void pidSetPWMDes(unsigned int channel, int pwm){
     if (channel < NUM_PIDS) {
         pidObjs[channel].pwmDes = pwm;
     }
+}
+
+static void SetupTimer1(void)
+{
+    unsigned int T1CON1value, T1PERvalue;
+    T1CON1value = T1_ON & T1_SOURCE_INT & T1_PS_1_8 & T1_GATE_OFF &
+                  T1_SYNC_EXT_OFF & T1_INT_PRIOR_2;
+    T1PERvalue = 0x03E8; //clock period = 0.0002s = ((T1PERvalue * prescaler)/FCY) (5000Hz)
+  	t1_ticks = 0;
+    OpenTimer1(T1CON1value, T1PERvalue);
+}
+
+static void setInitialOffset(unsigned int samples) {
+    //For IP2.5, it is expected that the offsets for idling motors should be about 511 ADC counts
+    // See wiki page on circuit for more details
+
+    int i;
+
+    //Offsets are expected to be ~511 counts for motor stationary.
+    long offsets[NUM_PIDS];
+    for(i = 0; i<NUM_PIDS; i++){
+        offsets[i] = 0;
+    }
+
+    delay_ms(10); //Settling time.
+
+    //Accumulate 8 readings to average out
+    for (i = 0; i < samples; i++) {
+        offsets[0] += adcGetMotorA();
+        offsets[1] += adcGetMotorB();
+        delay_ms(2);
+    }
+
+    for(i = 0; i<NUM_PIDS; i++){
+        offsets[i] = offsets[i] / samples;
+        pidObjs[i].inputOffset = offsets[i]; //store
+    }
+
 }
