@@ -73,6 +73,7 @@
 #include "uart_driver.h"
 #include "ppool.h"
 #include "carray.h"
+#include "ams-vibe.h"
 
 
 static Payload rx_payload;
@@ -119,9 +120,10 @@ int main() {
     dfmemSetup();
     telemSetup();
     adcSetup();
+
+    amsVibeSetup();
     pidSetup();
-
-
+    
 
     LED_1 = 0;
     LED_3 = 1;

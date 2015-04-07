@@ -32,7 +32,7 @@ static unsigned char running = 0;
 typedef struct{
     unsigned char channel;
     int amp, offset, phase;
-    int dc;
+    int out;
     _Q15 timebase;
     _Q15 delta;
     _Q15 arg;
@@ -109,11 +109,13 @@ void amsVibeSetAmplitude(unsigned int channel, unsigned int amp) {
         vibe2.amp = amp;
     }
 
-    if(amp != 0){
+    if((vibe1.amp != 0) || (vibe2.amp != 0)){
         running = 1;
     }
     else{
         running = 0;
+        vibe1.timebase = 0;
+        vibe2.timebase = 0;
     }
 
 }
@@ -147,11 +149,12 @@ void amsVibeSetPhase(unsigned int channel, _Q15 phase) {
 }
 
 
-int amsVibeGetDC(unsigned int channel){
+int amsVibeGetOutput(unsigned int channel){
     if (channel == 1) {
-        return vibe1.dc;
-    } else if (channel == 2) {
-        return vibe2.dc;
+        return vibe1.out;
+    }
+    if (channel == 2) {
+        return vibe2.out;
     }
 
     return 0;
@@ -162,17 +165,19 @@ int amsVibeGetDC(unsigned int channel){
 //This could be called from an external task, scheduler, etc.
 //Currently just called below in T1 interrupt.
 void amsVibeUpdate() {
-    update_vibe_synth();
+
     if (running) {
-        
+        update_vibe_synth();
         //BYPASS FOR TESTING
         //tiHSetDC(vibe1.channel, vibe1.dc);
         //tiHSetDC(vibe2.channel, vibe2.dc);
         //tiHSetDC(1, chan1dc);
         //tiHSetDC(2, chan2dc);
     } else {
-        tiHSetDC(vibe1.channel, 0);
-        tiHSetDC(vibe2.channel, 0);
+        vibe1.out = 0;
+        vibe2.out = 0;
+        //tiHSetDC(vibe1.channel, 0);
+        //tiHSetDC(vibe2.channel, 0);
         //tiHSetDC(1, 0);
         //tiHSetDC(2, 0);
     }
@@ -190,15 +195,15 @@ static void update_vibe_synth() {
 
     long temp;
 
-    vibe1.dc = _Q15sinPI(vibe1.arg);
-    temp = (long) (vibe1.dc) * (long) vibe1.amp;
-    vibe1.dc = (int) (temp >> 15); //shift back to Q15 format
-    vibe1.dc = _Q15add((_Q15)vibe1.dc, (_Q15)vibe1.offset); // Add offset with saturation
+    temp = _Q15sinPI(vibe1.arg);
+    temp *= (long) vibe1.amp;
+    temp = (int) (temp >> 15); //shift back to Q15 format
+    vibe1.out = _Q15add((_Q15)temp, (_Q15)vibe1.offset); // Add offset with saturation
 
-    vibe2.dc = _Q15sinPI(vibe2.arg);
-    temp = (long) (vibe2.dc) * (long) vibe1.amp;
-    vibe2.dc = (int) (temp >> 15); //shift back to Q15 format
-    vibe2.dc = _Q15add((_Q15)vibe2.dc, (_Q15)vibe2.offset); // Add offset with saturation
+    temp = _Q15sinPI(vibe2.arg);
+    temp *= (long) vibe2.amp;
+    temp = (int) (temp >> 15); //shift back to Q15 format
+    vibe2.out = _Q15add((_Q15)temp, (_Q15)vibe2.offset); // Add offset with saturation
 
     //chan1dc = _Q15sinPI(chan1arg);
     //long temp = (long)(chan1dc) * (long)chan1amp;

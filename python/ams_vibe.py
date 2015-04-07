@@ -42,48 +42,65 @@ def main():
     #Verify all robots can be queried
     verifyAllQueried()  #exits on failure
 
-    EXPERIMENT_RUN_TIME_MS     = 2000  #ms
-    EXPERIMENT_LEADIN_TIME_MS  = 0  #ms
-    EXPERIMENT_LEADOUT_TIME_MS = 0  #ms
+    # example , 0.1s lead in + 2s run + 0.1s lead out
+    EXPERIMENT_RUN_TIME_MS     = 500 #ms
+    EXPERIMENT_LEADIN_TIME_MS  = 100  #ms
+    EXPERIMENT_LEADOUT_TIME_MS = 100  #ms
     
-    if R1.SAVE_DATA:
-        R1.setupTelemetryDataTime(EXPERIMENT_LEADIN_TIME_MS + EXPERIMENT_RUN_TIME_MS + EXPERIMENT_LEADOUT_TIME_MS)
-    
-    raw_input("Press enter to start vibe...")
-    
-    if R1.SAVE_DATA:
-        R1.startTelemetrySave()
+    # Some preparation is needed to cleanly save telemetry data
+    for r in shared.ROBOTS:
+        if r.SAVE_DATA:
+            #This needs to be done to prepare the .telemetryData variables in each robot object
+            r.setupTelemetryDataTime(EXPERIMENT_LEADIN_TIME_MS + EXPERIMENT_RUN_TIME_MS + EXPERIMENT_LEADOUT_TIME_MS)
+            r.eraseFlashMem()
         
-    print "len R1.telemetryData=",R1.numSamples
-    print "len(R1.telemetryData)=",len(R1.telemetryData)
+    # Pause and wait to start run, including lead-in time
+    print "\n  ***************************\n  *******    READY    *******\n  Press ENTER to start run ...\n  ***************************"
+    raw_input("")
+    print ""
+
+    # Initiate telemetry recording; the robot will begin recording immediately when cmd is received.
+    for r in shared.ROBOTS:
+        if r.SAVE_DATA:
+            r.startTelemetrySave()
     
-    time.sleep(EXPERIMENT_LEADIN_TIME_MS/1000.0) #leadin
+    # Sleep for a lead-in time before any motion commands
+    time.sleep(EXPERIMENT_LEADIN_TIME_MS / 1000.0)
+    
+    ######## Motion is initiated here! ########
     
     ZERO_PHASE = 0
     freqL = 10
     freqR = 20
     amp = 2000
-    R1.setAMSvibe(1, freqL, amp, offset = 0, phase = ZERO_PHASE)
-    R1.setAMSvibe(2, freqR, amp, offset = 500, phase = ZERO_PHASE)
-    time.sleep( R1.runtime/1000.0 )
-    R1.setAMSvibe(1, freqL, 0, phase = ZERO_PHASE)
-    R1.setAMSvibe(2, freqR, 0, phase = ZERO_PHASE)
+    R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 1000, offset = -100, phase = ZERO_PHASE)
+    R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 500, offset = 600, phase = ZERO_PHASE)
     
-    time.sleep(EXPERIMENT_LEADOUT_TIME_MS/1000.0) #leadout
+    time.sleep(EXPERIMENT_RUN_TIME_MS / 1000.0)  #argument to time.sleep is in SECONDS
+    
+    R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 0, offset = 0, phase = ZERO_PHASE)
+    R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 0, offset = 0, phase = ZERO_PHASE)
+    
+    ######## End of motion commands   ########
+    
+    # Sleep for a lead-out time after any motion
+    time.sleep(EXPERIMENT_LEADOUT_TIME_MS / 1000.0) 
     
     for r in shared.ROBOTS:
         if r.SAVE_DATA:
             raw_input("Press Enter to start telemetry read-back ...")
             r.downloadTelemetry()
-
-    if EXIT_WAIT:  #Pause for a Ctrl + Cif specified
+    
+    if EXIT_WAIT:  #Pause for a Ctrl + C , if desired
         while True:
-            try:
-                time.sleep(1)
-            except KeyboardInterrupt:
-                break
+            time.sleep(0.1)
 
     print "Done"
+    
+    
+    
+    
+    
 	
 	
 #Provide a try-except over the whole main function

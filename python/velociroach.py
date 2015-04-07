@@ -305,13 +305,15 @@ class Velociroach:
         self.tx( 0, command.ZERO_POS, 'zero') #actual data sent in packet is not relevant
         time.sleep(0.1) #built-in holdoff, since reset apparently takes > 50ms
         
-    def setAMSvibe(self, chan, freq, amp, offset = 0, phase = 0):
+    def setAMSvibe(self, channel, frequency, amplitude, offset = 0, phase = 0):
         # freq should be a float in the range {0.0190738, 1250.}
         # phase should be a float in the range {-1.0, 1.0}
-        freqconv = 52.428;   #THIS IS PROBABLY WRONG due to 1250hz / 1khz change for AMS version, ap 4/6/2015
-        inc = int(round(float(freqconv) * float(freq)))
+        freqconv = 65.5350;   # For 1khz update timer
+        self.clAnnounce()
+        print "AMS Vibe: chan=",channel,"freq=",frequency," amp=",amplitude," offs=",offset," phase=",phase
+        incr = int(round(float(freqconv) * float(frequency)))
         phase_fixed = int(32768 * phase);
-        thrust = [chan, inc, amp, offset, phase_fixed]
+        thrust = [channel, incr, amplitude, offset, phase_fixed]
         self.tx( 0, command.SET_AMS_VIBE, pack('5h',*thrust))
         
 ########## Helper functions #################

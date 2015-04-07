@@ -50,8 +50,8 @@ def main():
     # Motor gains format:
     #  [ Kp , Ki , Kd , Kaw , Kff     ,  Kp , Ki , Kd , Kaw , Kff ]
     #    ----------LEFT----------        ---------_RIGHT----------
-    motorgains = [1800,0,100,0,0, 1800,0,100,0,0]
-    #motorgains = [0,0,0,0,0 , 0,0,0,0,0]
+    #motorgains = [1800,0,100,0,0, 1800,0,100,0,0]
+    motorgains = [0,0,0,0,0 , 0,0,0,0,0]
 
     simpleAltTripod = GaitConfig(motorgains, rightFreq=5, leftFreq=5) # Parameters can be passed into object upon construction, as done here.
     simpleAltTripod.phase = PHASE_180_DEG                             # Or set individually, as here

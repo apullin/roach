@@ -67,7 +67,7 @@ int measLast2[NUM_PIDS];
 int bemf[NUM_PIDS];
 
 
-static void SetupTimer1();
+static void setupTimer1(void);
 
 // -------------------------------------------
 // called from main()
@@ -78,7 +78,7 @@ void pidSetup() {
         initPIDObjPos(&(pidObjs[i]), DEFAULT_KP, DEFAULT_KI, DEFAULT_KD, DEFAULT_KAW, DEFAULT_FF);
     }
     initPIDVelProfile();
-    SetupTimer1(); // main interrupt used for leg motor PID
+    setupTimer1(); // main interrupt used for leg motor PID
 
     lastMoveTime = 0;
 
@@ -319,7 +319,7 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
 
         if (t1_ticks == T1_MAX) t1_ticks = 0;
         t1_ticks++;
-    /*  pidGetState(); // always update state, even if motor is coasting
+      /*pidGetState(); // always update state, even if motor is coasting
         for (j = 0; j < NUM_PIDS; j++) {
             // only update tracking setpoint if time has not yet expired
             if (pidObjs[j].onoff) {
@@ -344,9 +344,9 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
             tiHSetDC(pidObjs[1].output_channel, pidObjs[1].pwmDes);
         }
 */
-        //amsVibeUpdate();
-        pidObjs[0].p_input = amsVibeGetDC(0);
-        pidObjs[1].p_input = amsVibeGetDC(1);
+        amsVibeUpdate();
+        pidObjs[0].p_input = amsVibeGetOutput(1);
+        pidObjs[1].p_input = amsVibeGetOutput(2);
         //Do control on the position
         //pidSetControl();
     }
@@ -627,16 +627,6 @@ void pidSetPWMDes(unsigned int channel, int pwm){
     }
 }
 
-static void SetupTimer1(void)
-{
-    unsigned int T1CON1value, T1PERvalue;
-    T1CON1value = T1_ON & T1_SOURCE_INT & T1_PS_1_8 & T1_GATE_OFF &
-                  T1_SYNC_EXT_OFF & T1_INT_PRIOR_2;
-    T1PERvalue = 0x03E8; //clock period = 0.0002s = ((T1PERvalue * prescaler)/FCY) (5000Hz)
-  	t1_ticks = 0;
-    OpenTimer1(T1CON1value, T1PERvalue);
-}
-
 static void setInitialOffset(unsigned int samples) {
     //For IP2.5, it is expected that the offsets for idling motors should be about 511 ADC counts
     // See wiki page on circuit for more details
@@ -663,4 +653,14 @@ static void setInitialOffset(unsigned int samples) {
         pidObjs[i].inputOffset = offsets[i]; //store
     }
 
+}
+
+static void setupTimer1(void)
+{
+    unsigned int T1CON1value, T1PERvalue;
+    T1CON1value = T1_ON & T1_SOURCE_INT & T1_PS_1_8 & T1_GATE_OFF &
+                  T1_SYNC_EXT_OFF & T1_INT_PRIOR_2;
+    T1PERvalue = 0x03E8; //clock period = 0.0002s = ((T1PERvalue * prescaler)/FCY) (5000Hz)
+  	t1_ticks = 0;
+    OpenTimer1(T1CON1value, T1PERvalue);
 }
