@@ -41,9 +41,12 @@ def main():
     
     #Verify all robots can be queried
     verifyAllQueried()  #exits on failure
-
+    
+    motorgains = [100,0,0,0,0, 100,0,0,0,0]
+    R1.setMotorGains(motorgains)
+    
     # example , 0.1s lead in + 2s run + 0.1s lead out
-    EXPERIMENT_RUN_TIME_MS     = 500 #ms
+    EXPERIMENT_RUN_TIME_MS     = 5000 #ms
     EXPERIMENT_LEADIN_TIME_MS  = 100  #ms
     EXPERIMENT_LEADOUT_TIME_MS = 100  #ms
     
@@ -72,9 +75,9 @@ def main():
     ZERO_PHASE = 0
     freqL = 10
     freqR = 20
-    amp = 2000
-    R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 1000, offset = -100, phase = ZERO_PHASE)
-    R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 500, offset = 600, phase = ZERO_PHASE)
+    #amp = 2000
+    R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 100, offset = 0, phase = ZERO_PHASE)
+    R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 100, offset = 0, phase = ZERO_PHASE)
     
     time.sleep(EXPERIMENT_RUN_TIME_MS / 1000.0)  #argument to time.sleep is in SECONDS
     

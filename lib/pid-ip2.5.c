@@ -313,42 +313,49 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
     if (interrupt_count == 4) {
         mpuBeginUpdate();
         amsEncoderStartAsyncRead();
-    }        //PID controller update
+    }//PID controller update
     else if (interrupt_count == 5) {
         interrupt_count = 0;
 
+        //Handle t1_ticks rollover
+        //TODO: This should be automatic, with an unsigned long
         if (t1_ticks == T1_MAX) t1_ticks = 0;
         t1_ticks++;
-      /*pidGetState(); // always update state, even if motor is coasting
-        for (j = 0; j < NUM_PIDS; j++) {
-            // only update tracking setpoint if time has not yet expired
-            if (pidObjs[j].onoff) {
-                if (pidObjs[j].timeFlag) {
-                    if (pidObjs[j].start_time + pidObjs[j].run_time >= t1_ticks) {
-                        pidGetSetpoint(j);
-                    }
-                    if (t1_ticks > lastMoveTime) { // turn off if done running all legs
-                        pidObjs[0].onoff = 0;
-                        pidObjs[1].onoff = 0;
-                    }
-                }
-                else {
-                    pidGetSetpoint(j);
-                }
-            }
-        }
-        if (pidObjs[0].mode == PID_MODE_CONTROLED) {
-            pidSetControl();
-        } else if (pidObjs[0].mode == PID_MODE_PWMPASS) {
-            tiHSetDC(pidObjs[0].output_channel, pidObjs[0].pwmDes);
-            tiHSetDC(pidObjs[1].output_channel, pidObjs[1].pwmDes);
-        }
-*/
-        amsVibeUpdate();
+
+        pidGetState(); // always update state, even if motor is coasting
+
+        amsVibeUpdate(); //This will switch controllers on and off
         pidObjs[0].p_input = amsVibeGetOutput(1);
         pidObjs[1].p_input = amsVibeGetOutput(2);
+
+//        for (j = 0; j < NUM_PIDS; j++) {
+//            // only update tracking setpoint if time has not yet expired
+//            if (pidObjs[j].onoff) {
+//                if (pidObjs[j].timeFlag) {
+//                    if (pidObjs[j].start_time + pidObjs[j].run_time >= t1_ticks) {
+//                        pidGetSetpoint(j);
+//                    }
+//                    if (t1_ticks > lastMoveTime) { // turn off if done running all legs
+//                        pidObjs[0].onoff = 0;
+//                        pidObjs[1].onoff = 0;
+//                    }
+//                } else {
+//                    pidGetSetpoint(j);
+//                }
+//            }
+//        }
+
+        //Controller active, or just passing through PWM value
+        //if (pidObjs[0].mode == PID_MODE_CONTROLED) {
+        //    pidSetControl();
+        //} else if (pidObjs[0].mode == PID_MODE_PWMPASS) {
+        //    tiHSetDC(pidObjs[0].output_channel, pidObjs[0].pwmDes);
+        //    tiHSetDC(pidObjs[1].output_channel, pidObjs[1].pwmDes);
+        //}
+
+        
         //Do control on the position
-        //pidSetControl();
+        pidSetControl();
     }
     //LED_3 = 0;
 

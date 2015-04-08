@@ -17,6 +17,7 @@
 #include "telem.h"      //Cross-module dependence
 #include "mpu6000.h"    //Cross-module dependence
 #include "ams-enc.h"    //Cross-module dependence
+#include "pid-ip2.5.h"
 
 
 //static int chan1amp, chan2amp;
@@ -118,6 +119,18 @@ void amsVibeSetAmplitude(unsigned int channel, unsigned int amp) {
         vibe2.timebase = 0;
     }
 
+    if(vibe1.amp != 0){
+        pidOn(0);
+    } else{
+        pidOff(0);
+    }
+
+    if(vibe2.amp != 0){
+        pidOn(1);
+    } else{
+        pidOff(1);
+    }
+
 }
 
 void amsVibeSetOffset(unsigned int channel, int off) {
@@ -169,10 +182,6 @@ void amsVibeUpdate() {
     if (running) {
         update_vibe_synth();
         //BYPASS FOR TESTING
-        //tiHSetDC(vibe1.channel, vibe1.dc);
-        //tiHSetDC(vibe2.channel, vibe2.dc);
-        //tiHSetDC(1, chan1dc);
-        //tiHSetDC(2, chan2dc);
     } else {
         vibe1.out = 0;
         vibe2.out = 0;
