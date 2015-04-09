@@ -18,7 +18,11 @@ void amsVibeSetOffset(unsigned int channel, int off);
 //void amsVibeSetAmplitudeFloat(unsigned int channel, float famp);
 void amsVibeSetPhase(unsigned int channel, short phase); //short is surrogate for _Q15
 int amsVibeGetOutput(unsigned int channel);
+void amsVibeSetTimebase(unsigned int channel, int tb);
 void amsVibeUpdate();
+void amsVibeStart();
+void amsVibeStop();
+
 
 #endif	/* AMS_VIBE_H */
 

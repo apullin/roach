@@ -19,6 +19,8 @@
 #include "ams-enc.h"    //Cross-module dependence
 #include "pid-ip2.5.h"
 
+#define AMS_VIBE_STOPPED 0
+#define AMS_VIBE_RUNNING 1
 
 //static int chan1amp, chan2amp;
 //static int chan1off, chan2off;
@@ -27,7 +29,7 @@
 //static _Q15 chan1arg, chan2arg;
 //static _Q15 chan1_delta, chan2_delta;
 
-static unsigned char running = 0;
+static unsigned char running = AMS_VIBE_STOPPED;
 
 
 typedef struct{
@@ -75,18 +77,12 @@ void amsVibeSetup() {
     //_T1IE = 1;
 }
 
-//TODO: rewrite
-void amsVibeStart(void) {
-    //_OC1IE = 1;
-    //TMR3 = 0; //reset timer counter, so sin arg starts at 0
-    //T3CONbits.TON = 1;
-    //_T3IE = 1;
+void amsVibeStart(){
+    running = AMS_VIBE_RUNNING;
 }
 
-//TODO: rewrite
-void amsVibeStop(void) {
-    //_OC1IE = 0;
-    //T3CONbits.TON = 0;
+void amsVibeStop(){
+    running = AMS_VIBE_STOPPED;
 }
 
 void amsVibeSetFrequency(unsigned int channel, unsigned int incr) {
@@ -110,27 +106,6 @@ void amsVibeSetAmplitude(unsigned int channel, unsigned int amp) {
         vibe2.amp = amp;
     }
 
-    if((vibe1.amp != 0) || (vibe2.amp != 0)){
-        running = 1;
-    }
-    else{
-        running = 0;
-        vibe1.timebase = 0;
-        vibe2.timebase = 0;
-    }
-
-    if(vibe1.amp != 0){
-        pidOn(0);
-    } else{
-        pidOff(0);
-    }
-
-    if(vibe2.amp != 0){
-        pidOn(1);
-    } else{
-        pidOff(1);
-    }
-
 }
 
 void amsVibeSetOffset(unsigned int channel, int off) {
@@ -142,6 +117,16 @@ void amsVibeSetOffset(unsigned int channel, int off) {
         vibe2.offset = off;
     }
     
+}
+
+void amsVibeSetTimebase(unsigned int channel, int tb){
+    if (channel == 1) {
+        //chan1off = off;
+        vibe1.timebase = tb;
+    } else if (channel == 2) {
+        //chan2off = off;
+        vibe2.timebase = tb;
+    }
 }
 
 //void amsVibeSetAmplitudeFloat(unsigned int channel, float famp) {
@@ -181,14 +166,9 @@ void amsVibeUpdate() {
 
     if (running) {
         update_vibe_synth();
-        //BYPASS FOR TESTING
     } else {
         vibe1.out = 0;
         vibe2.out = 0;
-        //tiHSetDC(vibe1.channel, 0);
-        //tiHSetDC(vibe2.channel, 0);
-        //tiHSetDC(1, 0);
-        //tiHSetDC(2, 0);
     }
 }
 

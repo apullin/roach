@@ -142,14 +142,16 @@ unsigned char cmdStartTimedRun(unsigned char type, unsigned char status, unsigne
     for (i = 0; i < NUM_PIDS; i++){
         pidSetTimeFlag(i,1);
         //pidObjs[i].timeFlag = 1;
-        pidSetInput(i, 0);
-        checkSwapBuff(i);
+        //pidSetInput(i, 0);
+        //checkSwapBuff(i);
+        amsVibeSetTimebase(i+1,0);  //1 and 2
         pidOn(i);
     }
     
     pidSetMode(LEFT_LEGS_PID_NUM ,PID_MODE_CONTROLED);
     pidSetMode(RIGHT_LEGS_PID_NUM ,PID_MODE_CONTROLED);
 
+    amsVibeStart();
     pidStartTimedTrial(argsPtr->run_time);
 
     return 1;

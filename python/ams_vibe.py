@@ -42,11 +42,12 @@ def main():
     #Verify all robots can be queried
     verifyAllQueried()  #exits on failure
     
-    motorgains = [100,0,0,0,0, 100,0,0,0,0]
+    #motorgains = [100,0,0,0,0, 100,0,0,0,0]
+    motorgains = [0,0,0,0,0, 0,0,0,0,0]
     R1.setMotorGains(motorgains)
     
     # example , 0.1s lead in + 2s run + 0.1s lead out
-    EXPERIMENT_RUN_TIME_MS     = 5000 #ms
+    EXPERIMENT_RUN_TIME_MS     = 2000 #ms
     EXPERIMENT_LEADIN_TIME_MS  = 100  #ms
     EXPERIMENT_LEADOUT_TIME_MS = 100  #ms
     
@@ -73,16 +74,17 @@ def main():
     ######## Motion is initiated here! ########
     
     ZERO_PHASE = 0
-    freqL = 10
-    freqR = 20
+    freqL = 0.5
+    freqR = 0.75
     #amp = 2000
-    R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 100, offset = 0, phase = ZERO_PHASE)
-    R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 100, offset = 0, phase = ZERO_PHASE)
+    R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 5000, offset = 2500, phase = ZERO_PHASE)
+    R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 5000, offset = -2500, phase = ZERO_PHASE)
     
+    R1.startTimedRun( EXPERIMENT_RUN_TIME_MS ) #Faked for now, since pullin doesn't have a working VR+AMS to test with
     time.sleep(EXPERIMENT_RUN_TIME_MS / 1000.0)  #argument to time.sleep is in SECONDS
     
-    R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 0, offset = 0, phase = ZERO_PHASE)
-    R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 0, offset = 0, phase = ZERO_PHASE)
+    #R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 0, offset = 0, phase = ZERO_PHASE)
+    #R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 0, offset = 0, phase = ZERO_PHASE)
     
     ######## End of motion commands   ########
     
