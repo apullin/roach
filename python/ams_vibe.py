@@ -57,7 +57,15 @@ def main():
             #This needs to be done to prepare the .telemetryData variables in each robot object
             r.setupTelemetryDataTime(EXPERIMENT_LEADIN_TIME_MS + EXPERIMENT_RUN_TIME_MS + EXPERIMENT_LEADOUT_TIME_MS)
             r.eraseFlashMem()
-        
+    
+    
+    ZERO_PHASE = 0
+    freqL = 0.5
+    freqR = 0.5
+    #amp = 2000
+    R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 5000, offset = 0, phase = ZERO_PHASE)
+    R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 5000, offset = 0, phase = ZERO_PHASE)
+    
     # Pause and wait to start run, including lead-in time
     print "\n  ***************************\n  *******    READY    *******\n  Press ENTER to start run ...\n  ***************************"
     raw_input("")
@@ -71,14 +79,7 @@ def main():
     # Sleep for a lead-in time before any motion commands
     time.sleep(EXPERIMENT_LEADIN_TIME_MS / 1000.0)
     
-    ######## Motion is initiated here! ########
-    
-    ZERO_PHASE = 0
-    freqL = 0.5
-    freqR = 0.75
-    #amp = 2000
-    R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 5000, offset = 2500, phase = ZERO_PHASE)
-    R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 5000, offset = -2500, phase = ZERO_PHASE)
+    ######## Motion is initiated here! #######
     
     R1.startTimedRun( EXPERIMENT_RUN_TIME_MS ) #Faked for now, since pullin doesn't have a working VR+AMS to test with
     time.sleep(EXPERIMENT_RUN_TIME_MS / 1000.0)  #argument to time.sleep is in SECONDS
