@@ -11,7 +11,6 @@
 #include "dfmem.h"
 #include "radio.h"
 #include "dfmem.h"
-#include "tests.h"
 #include "version.h"
 #include "settings.h"
 #include "timer.h"
@@ -33,7 +32,12 @@ void cmdError(void);
 
 //extern pidPos pidObjs[NUM_PIDS];
 //extern EncObj encPos[NUM_ENC];
-extern volatile CircArray fun_queue;
+//volatile CircArray fun_queue;
+//CircArray fun_queue;
+
+//static Payload rx_payload;
+//static MacPacket rx_packet;
+//static test_function rx_function;
 
 /*-----------------------------------------------------------------------------
  *          Declaration of static functions
@@ -65,12 +69,13 @@ void cmdSetup(void) {
 
     unsigned int i;
 
+    //fun_queue = carrayCreate(12);
+
     // initialize the array of func pointers with Nop()
     for(i = 0; i < MAX_CMD_FUNC; ++i) {
         cmd_func[i] = &cmdNop;
     }
-    cmd_func[CMD_TEST_RADIO] = &test_radio;
-    cmd_func[CMD_TEST_MPU] = &test_mpu;
+
     cmd_func[CMD_SET_THRUST_OPEN_LOOP] = &cmdSetThrustOpenLoop;
     cmd_func[CMD_SET_MOTOR_MODE] = &cmdSetMotorMode;
     cmd_func[CMD_PID_START_MOTORS] = &cmdPIDStartMotors;
@@ -88,22 +93,51 @@ void cmdSetup(void) {
     cmd_func[CMD_SET_AMS_VIBE]  = &cmdSetAMSVibe;
 }
 
-void cmdPushFunc(MacPacket rx_packet) {
-    Payload rx_payload;
-    unsigned char command;
+void cmdHandleRadioRxBuffer(void) {
+    MacPacket packet;
+    Payload pld;
+    unsigned char command, status;
+    unsigned int rx_src_addr;
+    unsigned char* payData;
+    unsigned char payDataLength;
 
-    rx_payload = macGetPayload(rx_packet);
-    if(rx_payload != NULL) {
-        command = payGetType(rx_payload);
+    if ((packet = radioDequeueRxPacket()) != NULL) {
+        //LED_YELLOW = 1;
+        pld = macGetPayload(packet);
 
-        if(command < MAX_CMD_FUNC && cmd_func[command] != NULL) {
-            rx_payload->test = cmd_func[command];
-            carrayAddTail(fun_queue, rx_packet);
-        } else {
-            cmdError();   // halt on error - could also just ignore....
+        status = payGetStatus(pld);
+        command = payGetType(pld);
+        payData = payGetData(pld);
+        payDataLength = payGetDataLength(pld);
+        //We will respond to the packet source
+        rx_src_addr = packet->src_addr.val;
+
+        if (command < MAX_CMD_FUNC) {
+            cmd_func[command](command, status, payDataLength, payData, rx_src_addr);
         }
+        radioReturnPacket(packet);
     }
+
+    return;
 }
+
+
+//void cmdPushFunc(MacPacket rx_packet) {
+//    Payload rx_payload;
+//    unsigned char command;
+//
+//    rx_payload = macGetPayload(rx_packet);
+//    if(rx_payload != NULL) {
+//        command = payGetType(rx_payload);
+//
+//        if( (command < MAX_CMD_FUNC) && (cmd_func[command] != NULL) ) {
+//            rx_payload->test = cmd_func[command];
+//            carrayAddTail(fun_queue, rx_packet);
+//        } else {
+//            cmdError();   // halt on error - could also just ignore....
+//        }
+//    }
+//}
 
 
 // send robot info when queried

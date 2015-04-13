@@ -29,7 +29,8 @@
 // Redefine
 
 void cmdSetup(void);
-void cmdPushFunc(MacPacket rx_packet);
+void cmdHandleRadioRxBuffer(void);
+//void cmdPushFunc(MacPacket rx_packet);
 
 
 /////// Argument structures

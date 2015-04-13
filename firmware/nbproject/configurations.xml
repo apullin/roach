@@ -29,6 +29,7 @@
         <itemPath>../../imageproc-lib/telem.h</itemPath>
         <itemPath>../../imageproc-lib/bsp-ip25.h</itemPath>
         <itemPath>../../imageproc-lib/utils.h</itemPath>
+        <itemPath>../../imageproc-lib/at86rf233.h</itemPath>
       </logicalFolder>
       <logicalFolder name="f1" displayName="imageproc-settings" projectFiles="true">
         <itemPath>../../imageproc-settings/settings.h</itemPath>
@@ -40,7 +41,6 @@
         <itemPath>../lib/interrupts.h</itemPath>
         <itemPath>../lib/led.h</itemPath>
         <itemPath>../lib/pid-ip2.5.h</itemPath>
-        <itemPath>../lib/tests.h</itemPath>
         <itemPath>../lib/vr_telem.h</itemPath>
         <itemPath>../lib/ams-vibe.h</itemPath>
       </logicalFolder>
@@ -57,7 +57,6 @@
                      displayName="imageproc-lib"
                      projectFiles="true">
         <itemPath>../../imageproc-lib/ams-enc.c</itemPath>
-        <itemPath>../../imageproc-lib/at86rf231_driver.c</itemPath>
         <itemPath>../../imageproc-lib/carray.c</itemPath>
         <itemPath>../../imageproc-lib/dfmem.c</itemPath>
         <itemPath>../../imageproc-lib/mac_packet.c</itemPath>
@@ -76,11 +75,10 @@
         <itemPath>../../imageproc-lib/version.c</itemPath>
         <itemPath>../../imageproc-lib/telem.c</itemPath>
         <itemPath>../../imageproc-lib/traps.c</itemPath>
+        <itemPath>../../imageproc-lib/at86rf233_driver.c</itemPath>
       </logicalFolder>
       <logicalFolder name="lib" displayName="lib" projectFiles="true">
-        <itemPath>../lib/interrupts.c</itemPath>
         <itemPath>../lib/pid-ip2.5.c</itemPath>
-        <itemPath>../lib/tests.c</itemPath>
         <itemPath>../lib/vr_telem.c</itemPath>
         <itemPath>../lib/ams-vibe.c</itemPath>
         <itemPath>../lib/init.c</itemPath>

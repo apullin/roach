@@ -53,7 +53,7 @@ def main():
     #motorgains = [1800,0,100,0,0, 1800,0,100,0,0]
     motorgains = [0,0,0,0,0 , 0,0,0,0,0]
 
-    simpleAltTripod = GaitConfig(motorgains, rightFreq=5, leftFreq=5) # Parameters can be passed into object upon construction, as done here.
+    simpleAltTripod = GaitConfig(motorgains, rightFreq=1, leftFreq=1) # Parameters can be passed into object upon construction, as done here.
     simpleAltTripod.phase = PHASE_180_DEG                             # Or set individually, as here
     simpleAltTripod.deltasLeft = [0.25, 0.25, 0.25]
     simpleAltTripod.deltasRight = [0.25, 0.25, 0.25]
