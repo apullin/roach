@@ -19,7 +19,7 @@ from velociroach import *
 
 ###### Operation Flags ####
 RESET_R1     = True  
-SAVE_DATA_R1 = True  # CURRENTLY BROKEN HERE
+SAVE_DATA_R1 = False
 EXIT_WAIT    = False
 
 def main():    
@@ -42,12 +42,12 @@ def main():
     #Verify all robots can be queried
     verifyAllQueried()  #exits on failure
     
-    #motorgains = [100,0,0,0,0, 100,0,0,0,0]
-    motorgains = [0,0,0,0,0, 0,0,0,0,0]
+    motorgains = [1500,0,0,0,0, 1500,0,0,0,0]
+    #motorgains = [0,0,0,0,0, 0,0,0,0,0]
     R1.setMotorGains(motorgains)
     
     # example , 0.1s lead in + 2s run + 0.1s lead out
-    EXPERIMENT_RUN_TIME_MS     = 2000 #ms
+    EXPERIMENT_RUN_TIME_MS     = 4000 #ms
     EXPERIMENT_LEADIN_TIME_MS  = 100  #ms
     EXPERIMENT_LEADOUT_TIME_MS = 100  #ms
     
@@ -59,12 +59,13 @@ def main():
             r.eraseFlashMem()
     
     
-    ZERO_PHASE = 0
-    freqL = 0.5
-    freqR = 0.5
+    PHASE_ZERO = 0
+    PHASE_180 = 1.0
+    freqL = 25
+    freqR = 25
     #amp = 2000
-    R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 5000, offset = 0, phase = ZERO_PHASE)
-    R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 5000, offset = 0, phase = ZERO_PHASE)
+    R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
+    R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
     
     # Pause and wait to start run, including lead-in time
     print "\n  ***************************\n  *******    READY    *******\n  Press ENTER to start run ...\n  ***************************"
