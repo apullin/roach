@@ -312,7 +312,7 @@ class Velociroach:
         self.clAnnounce()
         print "AMS Vibe: chan=",channel,"freq=",frequency," amp=",amplitude," offs=",offset," phase=",phase
         incr = int(round(float(freqconv) * float(frequency)))
-        phase_fixed = int(32768 * phase);
+        phase_fixed = int(32767 * phase);
         thrust = [channel, incr, amplitude, offset, phase_fixed]
         self.tx( 0, command.SET_AMS_VIBE, pack('5h',*thrust))
         
