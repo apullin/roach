@@ -47,7 +47,7 @@ def main():
     R1.setMotorGains(motorgains)
     
     # example , 0.1s lead in + 2s run + 0.1s lead out
-    EXPERIMENT_RUN_TIME_MS     = 4000 #ms
+    EXPERIMENT_RUN_TIME_MS     = 3000 #ms
     EXPERIMENT_LEADIN_TIME_MS  = 100  #ms
     EXPERIMENT_LEADOUT_TIME_MS = 100  #ms
     
@@ -64,33 +64,36 @@ def main():
     freqL = 25
     freqR = 25
     #amp = 2000
-    R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
-    R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
+    #R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
+    #R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
     
-    # Pause and wait to start run, including lead-in time
     print "\n  ***************************\n  *******    READY    *******\n  Press ENTER to start run ...\n  ***************************"
     raw_input("")
-    print ""
+    
+    # Sleep for a lead-in time before any motion commands
+    time.sleep(EXPERIMENT_LEADIN_TIME_MS / 1000.0)
+    
+    freqs = [10, 15, 20, 25, 30, 35]
+    for f in freqs:
+        freqL = f
+        freqR = f
+        #amp = 2000
+        R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
+        R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
+        
+        # Sleep for a lead-in time before any motion commands
+        time.sleep(EXPERIMENT_LEADIN_TIME_MS / 1000.0)
+        R1.startTimedRun( EXPERIMENT_RUN_TIME_MS ) #Faked for now, since pullin doesn't have a working VR+AMS to test with
+        time.sleep(EXPERIMENT_RUN_TIME_MS / 1000.0)  #argument to time.sleep is in SECONDS
+        
+        #dead time between runs
+        time.sleep(4)
 
     # Initiate telemetry recording; the robot will begin recording immediately when cmd is received.
     for r in shared.ROBOTS:
         if r.SAVE_DATA:
             r.startTelemetrySave()
     
-    # Sleep for a lead-in time before any motion commands
-    time.sleep(EXPERIMENT_LEADIN_TIME_MS / 1000.0)
-    
-    ######## Motion is initiated here! #######
-    
-    R1.startTimedRun( EXPERIMENT_RUN_TIME_MS ) #Faked for now, since pullin doesn't have a working VR+AMS to test with
-    time.sleep(EXPERIMENT_RUN_TIME_MS / 1000.0)  #argument to time.sleep is in SECONDS
-    
-    #R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 0, offset = 0, phase = ZERO_PHASE)
-    #R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 0, offset = 0, phase = ZERO_PHASE)
-    
-    ######## End of motion commands   ########
-    
-    # Sleep for a lead-out time after any motion
     time.sleep(EXPERIMENT_LEADOUT_TIME_MS / 1000.0) 
     
     for r in shared.ROBOTS:
