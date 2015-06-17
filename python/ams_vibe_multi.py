@@ -43,7 +43,7 @@ def main():
     #Verify all robots can be queried
     verifyAllQueried()  #exits on failure
     
-    motorgains = [1500,0,0,0,0, 1500,0,0,0,0]
+    motorgains = [2500,0,0,0,0, 2500,0,0,0,0]
     #motorgains = [0,0,0,0,0, 0,0,0,0,0]
     R1.setMotorGains(motorgains)
     
@@ -61,22 +61,12 @@ def main():
     
     
     PHASE_ZERO = 0
+    PHASE_90 = 0.5
     PHASE_180 = 1.0
-    freqL = 25
-    freqR = 25
-    #amp = 2000
-    #R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
-    #R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
-    
-    
-    
-    # Sleep for a lead-in time before any motion commands
-    time.sleep(EXPERIMENT_LEADIN_TIME_MS / 1000.0)
-    
     DEADTIME = 6.0
     
-    freqs = [10, 15, 20, 25, 30, 35]
-    nrep = 5;
+    freqs = [10, 13, 16, 19, 22, 25, 28, 31]
+    nrep = 7;
     
     flist = np.array([[i]*nrep for i in freqs]).flatten().tolist()
     
@@ -89,11 +79,11 @@ def main():
     print "\n  ***************************\n  *******    READY    *******\n  Press ENTER to start run ...\n  ***************************"
     raw_input("")
     
-    for f in flist:
+    for f in flist:        
         freqL = f
         freqR = f
         #amp = 2000
-        R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
+        R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 5000, offset = 0, phase = PHASE_90)
         R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
         
         # Sleep for a lead-in time before any motion commands
