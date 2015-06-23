@@ -12,6 +12,7 @@
 #define NUM_PIDS	2
 #define NUM_VELS	4 // 8 velocity setpoints per cycle
 #define NUM_BUFF 	2 // Number of strides buffered in to get setpoint
+//TODO: Remove or rewrite the above "buffer" mechanism.
 
 
 /* The back emf constant can be measured by measuring velocity from Hall encoder 
@@ -65,9 +66,10 @@ typedef struct
 	int index;			// right index to moves
 	int leg_stride;
         unsigned char p_state_flip;     //boolean; flip or do not flip
-        unsigned char output_channel;
+        unsigned char output_channel;   //TODO: These should be moved to a "leg control" module
         unsigned char encoder_num;
         unsigned char pwm_flip;
+        int bemfHist[3];
 } pidPos;
 
 // structure for velocity control of leg cycle

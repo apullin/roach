@@ -53,7 +53,6 @@
 #include "timer.h"
 #include <stdlib.h>
 //imageproc-lib
-#include "init.h"  // TODO : init.h and init.c need to be obsoleted
 #include "init_default.h"
 #include "utils.h"
 #include "radio.h"

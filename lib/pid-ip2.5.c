@@ -1,21 +1,19 @@
 /*
- * Name: UpdatePID.c
- * Desc: Control code to compute the new input to the plant
- * Date: 2009-04-03
- * Author: AMH
-   modified to include hall effect sensor by RSF.
- * modified Dec. 2011 to include telemetry capture
- * modified Jan. 2012 to include median filter on back emf
- * modified Jan. 2013 to include AMS Hall encoder, and MPU 6000 gyro
+ * Name: pid-ip2.5.c
+ * Desc: Leg drive control for VelociRoACH and similar robots
+ * Date: 
+ * Author: dhaldane, apullin, ronf
  */
+
 #include <xc.h>
-#include "timer.h"
+//dsPIC library
+#include "pwm.h"
+#include <stdlib.h> // for malloc
+//imageproc-lib and library includes
 #include "pid-ip2.5.h"
 #include "dfmem.h"
 #include "adc_pid.h"
-#include "pwm.h"
 #include "led.h"
-#include "adc.h"
 #include "sclock.h"
 #include "ams-enc.h"
 #include "tih.h"
@@ -24,25 +22,15 @@
 #include "ppool.h"
 #include "dfmem.h"
 #include "telem.h"
+#include "sys_service.h"
 #include "ams-vibe.h"
-
-#include <stdlib.h> // for malloc
-//#include "init.h"  // for Timer1
-
 
 #define MC_CHANNEL_PWM1     1
 #define MC_CHANNEL_PWM2     2
 #define MC_CHANNEL_PWM3     3
 #define MC_CHANNEL_PWM4     4
 
-//#define HALFTHROT 10000
-#define HALFTHROT 2000
-#define FULLTHROT 2*HALFTHROT
-// MAXTHROT has to allow enough time at end of PWM for back emf measurement
-// was 3976
-#define MAXTHROT 3800
-
-#define ABS(my_val) ((my_val) < 0) ? -(my_val) : (my_val)
+//// Private variables
 
 // PID control structure
 pidPos pidObjs[NUM_PIDS];
@@ -52,25 +40,32 @@ pidVelLUT pidVel[NUM_PIDS*NUM_BUFF];
 pidVelLUT* activePID[NUM_PIDS]; //Pointer arrays for stride buffering
 pidVelLUT* nextPID[NUM_PIDS];
 
-#define T1_MAX 0xffffff  // max before rollover of 1 ms counter
-// may be glitch in longer missions at rollover
-volatile unsigned long t1_ticks;
 unsigned long lastMoveTime;
-int seqIndex;
-
-//Private functions
-static void setInitialOffset(unsigned int samples);
 
 // 2 last readings for median filter
 int measLast1[NUM_PIDS];
 int measLast2[NUM_PIDS];
 int bemf[NUM_PIDS];
 
+//// Private function prototypes
+static void SetupTimer1(void);
 
-static void setupTimer1(void);
+//Service routine function
+static void pidip25ServiceRoutine();
 
-// -------------------------------------------
-// called from main()
+//Private functions
+static void setInitialOffset(unsigned int samples);
+int medianFilter3(int*);
+
+/////////        Leg Control ISR       ////////
+/////////  Installed to Timer1 @ 1Khz  ////////
+
+
+
+
+//////////////////////////////////////
+/////////  Public Functions  /////////
+//////////////////////////////////////
 
 void pidSetup() {
     int i;
@@ -78,11 +73,10 @@ void pidSetup() {
         initPIDObjPos(&(pidObjs[i]), DEFAULT_KP, DEFAULT_KI, DEFAULT_KD, DEFAULT_KAW, DEFAULT_FF);
     }
     initPIDVelProfile();
-    setupTimer1(); // main interrupt used for leg motor PID
 
     lastMoveTime = 0;
 
-    //TODO: This should be generalized fo there is no sense of "left" and "right" here
+    //TODO: This should be generalized so there is no sense of "left" and "right" here
     pidObjs[LEFT_LEGS_PID_NUM].output_channel  = LEFT_LEGS_TIH_CHAN;
     pidObjs[LEFT_LEGS_PID_NUM].p_state_flip    = LEFT_LEGS_ENC_FLIP;
     pidObjs[LEFT_LEGS_PID_NUM].encoder_num     = LEFT_LEGS_ENC_NUM;
@@ -98,11 +92,11 @@ void pidSetup() {
     pidSetInput(RIGHT_LEGS_PID_NUM, 0);
 
     setInitialOffset(16); //2ms delay between samples, so 32ms calib time
-    
 
-    EnableIntT1; // turn on pid interrupts
-
-    
+    //EnableIntT1; // turn on pid interrupts
+    SetupTimer1(); // Timer 1 @ 1 Khz
+    int retval;
+    retval = sysServiceInstallT1(pidip25ServiceRoutine);
 }
 
 
@@ -183,6 +177,9 @@ void initPIDObjPos(pidPos *pid, int Kp, int Ki, int Kd, int Kaw, int ff) {
 
     pid->p_state_flip = 0; //default to no flip
     pid->output_channel = 0;
+    pid->inputOffset = 0;
+
+    pid->bemfHist[0] = 0; pid->bemfHist[1] = 0; pid->bemfHist[2] = 0;
 }
 
 
@@ -194,7 +191,7 @@ void pidSetInput(int pid_num, int input_val) {
     /*      ******   use velocity setpoint + throttle for compatibility between Hall and Pullin code *****/
     /* otherwise, miss first velocity set point */
     pidObjs[pid_num].v_input = input_val + (int) (((long) pidVel[pid_num].vel[0] * K_EMF) >> 8); //initialize first velocity ;
-    pidObjs[pid_num].start_time = t1_ticks;
+    pidObjs[pid_num].start_time = getT1_ticks();
     //zero out running PID values
     pidObjs[pid_num].i_error = 0;
     pidObjs[pid_num].p = 0;
@@ -222,7 +219,7 @@ void pidSetInput(int pid_num, int input_val) {
 void pidStartTimedTrial(unsigned int run_time) {
     unsigned long temp;
 
-    temp = t1_ticks; // need atomic read due to interrupt
+    temp = getT1_ticks(); // need atomic read due to interrupt
     pidObjs[0].run_time = run_time;
     pidObjs[1].run_time = run_time;
     pidObjs[0].start_time = temp;
@@ -244,12 +241,14 @@ void pidSetGains(int pid_num, int Kp, int Ki, int Kd, int Kaw, int ff) {
 
 void pidOn(int pid_num) {
     pidObjs[pid_num].onoff = PID_ON;
-    t1_ticks = 0;
+    //t1_ticks = 0;
+    //sysService does not support timer zeroing
 }
 
 void pidOff(int pid_num) {
     pidObjs[pid_num].onoff = PID_OFF;
-    t1_ticks = 0;
+    //t1_ticks = 0;
+    //sysService does not support timer zeroing
 }
 
 // zero position setpoint for both motors (avoids big offset errors)
@@ -265,9 +264,6 @@ void pidZeroPos(int pid_num) {
     pidObjs[pid_num].leg_stride = 0; // strides also reset
     EnableIntT1; // turn on pid interrupts
 }
-
-
-
 
 
 /*****************************************************************************************/
@@ -293,73 +289,66 @@ void EmergencyStop(void) {
 
 /* update setpoint  only leg which has run_time + start_time > t1_ticks */
 /* turn off when all PIDs have finished */
-static volatile unsigned char interrupt_count = 0;
-static volatile unsigned char telemetry_count = 0;
+//static volatile unsigned char interrupt_count = 0;
+//static volatile unsigned char telemetry_count = 0;
 extern volatile MacPacket uart_tx_packet;
-extern volatile unsigned char uart_tx_flag;
+extern volatile unsigned char uart_tx_flag; //TODO: separate this UART kruft
 
-void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
-    int j;
-    //LED_3 = 1;
-    interrupt_count++;
 
-    //Telemetry save, at 1Khz
-    //TODO: Break coupling between PID module and telemetry triggering
-    if (interrupt_count == 3) {
-        telemSaveNow();
-    }
-    //Update IMU
-    //TODO: Break coupling between PID module and IMU update
-    if (interrupt_count == 4) {
-        mpuBeginUpdate();
-        amsEncoderStartAsyncRead();
-    }//PID controller update
-    else if (interrupt_count == 5) {
-        interrupt_count = 0;
+static void pidip25ServiceRoutine() {
 
-        //Handle t1_ticks rollover
-        //TODO: This should be automatic, with an unsigned long
-        if (t1_ticks == T1_MAX) t1_ticks = 0;
-        t1_ticks++;
+    unsigned long t1_ticks = getT1_ticks();
 
-        pidGetState(); // always update state, even if motor is coasting
+    int j = 0;
 
-        
-
-        for (j = 0; j < NUM_PIDS; j++) {
-            // only update tracking setpoint if time has not yet expired
-            if (pidObjs[j].onoff) {
-                if (pidObjs[j].timeFlag) {
-                    if (pidObjs[j].start_time + pidObjs[j].run_time >= t1_ticks) {
-                        //pidGetSetpoint(j);
-                        amsVibeUpdate(); //This will switch controllers on and off
-                        pidObjs[0].p_input = amsVibeGetOutput(1);
-                        pidObjs[1].p_input = amsVibeGetOutput(2);
-                    }
-                    if (t1_ticks > lastMoveTime) { // turn off if done running all legs
-                        pidObjs[0].onoff = 0;
-                        pidObjs[1].onoff = 0;
-                        amsVibeStop();
-                    }
-                } else {
-                    pidGetSetpoint(j);
+    pidGetState(); // always update state, even if motor is coasting
+    for (j = 0; j < NUM_PIDS; j++) {
+        // only update tracking setpoint if time has not yet expired
+        if (pidObjs[j].onoff) {
+            if (pidObjs[j].timeFlag) {
+                if (pidObjs[j].start_time + pidObjs[j].run_time >= t1_ticks) {
+                    //pidGetSetpoint(j);
+                    amsVibeUpdate(); //This will switch controllers on and off
+                    pidObjs[0].p_input = amsVibeGetOutput(1);
+                    pidObjs[1].p_input = amsVibeGetOutput(2);
                 }
+                if (t1_ticks > lastMoveTime) { // turn off if done running all legs
+                    pidObjs[0].onoff = 0;
+                    pidObjs[1].onoff = 0;
+                    amsVibeStop();
+                }
+            } else {
+                pidGetSetpoint(j);
             }
         }
-
-        //Controller active, or just passing through PWM value
-        if (pidObjs[0].mode == PID_MODE_CONTROLED) {
-            //Do control on the position
-            pidSetControl();
-        } else if (pidObjs[0].mode == PID_MODE_PWMPASS) {
-            tiHSetDC(pidObjs[0].output_channel, pidObjs[0].pwmDes);
-            tiHSetDC(pidObjs[1].output_channel, pidObjs[1].pwmDes);
-        }
-
     }
-    //LED_3 = 0;
+    if (pidObjs[0].mode == PID_MODE_CONTROLED) {
+        pidSetControl();
+    } else if (pidObjs[0].mode == PID_MODE_PWMPASS) {
+        tiHSetDC(pidObjs[0].output_channel, pidObjs[0].pwmDes);
+        tiHSetDC(pidObjs[1].output_channel, pidObjs[1].pwmDes);
+    }
 
-    _T1IF = 0;
+    LED_3 = 0;
+
+
+    //Previous method: 5khz timer with 5 time slices
+    //Instead, functions wil just be called in a reasonable order here.
+    //This is NOT good form; each one of these calls should be in their own
+    //module, and install with sysServiceT1
+
+
+    //This used to be done in 1 of 5 time slices of a 5khz interrupt
+    amsEncoderStartAsyncRead();
+
+    //This used to be done in 1 of 5 time slices of a 5khz interrupt
+    //This should be moved to an IMU module
+    mpuBeginUpdate();
+
+    //This used to be done in 1 of 5 time slices of a 5khz interrupt
+    //This should be moved to a telem module.
+    telemSaveNow();
+
 }
 
 // update desired velocity and position tracking setpoints for each leg
@@ -370,7 +359,7 @@ void pidGetSetpoint(int j) {
     // update desired position between setpoints, scaled by 256
     pidObjs[j].interpolate += (long) activePID[j]->vel[index];
 
-    if (t1_ticks >= pidObjs[j].expire) { // time to reach previous setpoint has passed
+    if (getT1_ticks() >= pidObjs[j].expire) { // time to reach previous setpoint has passed
         pidObjs[j].interpolate = 0;
         pidObjs[j].p_input += activePID[j]->delta[index]; //update to next set point
         pidObjs[j].index++;
@@ -404,9 +393,6 @@ void checkSwapBuff(int j) {
     }
 }
 
-// select either back emf or backwd diff for vel est
-
-#define VEL_BEMF 0
 
 /* update state variables including motor position and velocity */
 
@@ -420,18 +406,22 @@ void pidGetState() {
     unsigned long time_start, time_end;
 
     // choose velocity estimate
-#if VEL_BEMF == 0    // use first difference on position for velocity estimate
+#ifndef VEL_BEMF    // use first difference on position for velocity estimate
     long oldpos[NUM_PIDS], velocity;
     for (i = 0; i < NUM_PIDS; i++) {
         oldpos[i] = pidObjs[i].p_state;
     }
 #endif
 
+
+    //TODO: Change BEMF getter functions to function pointers, make settable
     time_start = sclockGetTime();
     bemf[0] = pidObjs[0].inputOffset - adcGetMotorA(); // watch sign for A/D? unsigned int -> signed?
     bemf[1] = pidObjs[1].inputOffset - adcGetMotorB(); // MotorB
+
     // only works to +-32K revs- might reset after certain number of steps? Should wrap around properly
     for (i = 0; i < NUM_PIDS; i++) {
+
         enc_num = pidObjs[i].encoder_num;
         
         encPosition = amsEncoderGetPos(enc_num);
@@ -453,7 +443,7 @@ void pidGetState() {
     time_end = sclockGetTime() - time_start;
 
 
-#if VEL_BEMF == 0    // use first difference on position for velocity estimate
+#ifndef VEL_BEMF    // use first difference on position for velocity estimate
     for (i = 0; i < NUM_PIDS; i++) {
         velocity = pidObjs[i].p_state - oldpos[i]; // Encoder ticks per ms
         if (velocity > 0x7fff) velocity = 0x7fff; // saturate to int
@@ -464,61 +454,26 @@ void pidGetState() {
 
     // choose velocity estimate
 
-#if VEL_BEMF == 1
-    int measurements[NUM_PIDS];
-    // Battery: AN0, MotorA AN8, MotorB AN9, MotorC AN10, MotorD AN11
-    measurements[0] = pidObjs[0].inputOffset - adcGetMotorA(); // watch sign for A/D? unsigned int -> signed?
-    measurements[1] = pidObjs[1].inputOffset - adcGetMotorB(); // MotorB
+#ifdef VEL_BEMF
 
+    //Rotate BEMF history
+    pidObjs[0]->bemfHist[2] = pidObjs[0]->bemfHist[1];
+    pidObjs[0]->bemfHist[1] = pidObjs[0]->bemfHist[0];
+
+    pidObjs[1]->bemfHist[2] = pidObjs[0]->bemfHist[1];
+    pidObjs[1]->bemfHist[1] = pidObjs[0]->bemfHist[0];
+
+    pidObjs[0]->bemfHist[0] = bemf[0];
+    pidObjs[1]->bemfHist[0] = bemf[1];
 
     //Get motor speed reading on every interrupt - A/D conversion triggered by PWM timer to read Vm when transistor is off
     // when motor is loaded, sometimes see motor short so that  bemf=offset voltage
     // get zero sometimes - open circuit brush? Hence try median filter
-    for (i = 0; i < 2; i++) // median filter
-    {
-        if (measurements[i] > measLast1[i]) {
-            if (measLast1[i] > measLast2[i]) {
-                bemf[i] = measLast1[i];
-            }// middle value is median
-            else // middle is smallest
-            {
-                if (measurements[i] > measLast2[i]) {
-                    bemf[i] = measLast2[i];
-                }// 3rd value is median
-                else {
-                    bemf[i] = measurements[i];
-                } // first value is median
-            }
-        }
-        else // first is not biggest
-        {
-            if (measLast1[i] < measLast2[i]) {
-                bemf[i] = measLast1[i];
-            }// middle value is median
-            else // middle is biggest
-            {
-                if (measurements[i] < measLast2[i]) {
-                    bemf[i] = measLast2[i];
-                }// 3rd value is median
-                else {
-                    bemf[i] = measurements[i]; // first value is median
-                }
-            }
-        }
-    } // end for
-    // store old values
-    measLast2[0] = measLast1[0];
-    measLast1[0] = measurements[0];
-    measLast2[1] = measLast1[1];
-    measLast1[1] = measurements[1];
-    pidObjs[0].v_state = bemf[0];
-    pidObjs[1].v_state = bemf[1]; //  might also estimate from deriv of pos data
-    //if((measurements[0] > 0) || (measurements[1] > 0)) {
-    if ((measurements[0] > 0)) {
-        LED_BLUE = 1;
-    } else {
-        LED_BLUE = 0;
-    }
+    
+
+    pidObjs[0].v_state = medianFilter3(pidObjs[1]->bemfHist);
+    pidObjs[1].v_state = medianFilter3(pidObjs[1]->bemfHist);
+
 #endif
 }
 
@@ -634,17 +589,13 @@ void pidSetPWMDes(unsigned int channel, int pwm){
     }
 }
 
+
 static void setInitialOffset(unsigned int samples) {
     //For IP2.5, it is expected that the offsets for idling motors should be about 511 ADC counts
     // See wiki page on circuit for more details
-
     int i;
-
     //Offsets are expected to be ~511 counts for motor stationary.
     long offsets[NUM_PIDS];
-    for(i = 0; i<NUM_PIDS; i++){
-        offsets[i] = 0;
-    }
 
     delay_ms(10); //Settling time.
 
@@ -656,18 +607,49 @@ static void setInitialOffset(unsigned int samples) {
     }
 
     for(i = 0; i<NUM_PIDS; i++){
-        offsets[i] = offsets[i] / samples;
-        pidObjs[i].inputOffset = offsets[i]; //store
+        offsets[i] = offsets[i] / samples; // fast div by 8
+        pidObjs[i].inputOffset = (int)(offsets[i]); //store
     }
 
 }
 
-static void setupTimer1(void)
-{
+
+//////////////////////////////////////
+/////////  Private Functions /////////
+//////////////////////////////////////
+
+static void SetupTimer1(void) {
     unsigned int T1CON1value, T1PERvalue;
-    T1CON1value = T1_ON & T1_SOURCE_INT & T1_PS_1_8 & T1_GATE_OFF &
-                  T1_SYNC_EXT_OFF & T1_IDLE_CON & T1_INT_PRIOR_2;
-    T1PERvalue = 0x03E8; //clock period = 0.0002s = ((T1PERvalue * prescaler)/FCY) (5000Hz)
-  	t1_ticks = 0;
-    OpenTimer1(T1CON1value, T1PERvalue);
+    T1CON1value = T1_ON & T1_SOURCE_INT & T1_PS_1_1 & T1_GATE_OFF &
+            T1_SYNC_EXT_OFF & T1_IDLE_CON;  //correct
+
+    T1PERvalue = 0x9C40; //clock period = 0.001s = (T1PERvalue/FCY) (1KHz)
+    int retval;
+    retval = sysServiceConfigT1(T1CON1value, T1PERvalue, T1_INT_PRIOR_5 & T1_INT_ON);
+    //TODO: Put a soft trap here, conditional on retval
+}
+
+//Poor implementation of a median filter for a 3-array of values
+int medianFilter3(int* a) {
+    int b[3] = {a[0], a[1], a[2]};
+    int temp;
+
+    //Implemented through 3 compare-exchange operations, increasing index
+    if (b[0] > b[1]) {
+        temp = b[1];
+        b[1] = b[0];
+        b[0] = temp;
+    }
+    if (a[0] > a[2]) {
+        temp = b[2];
+        b[2] = b[0];
+        b[0] = temp;
+    }
+    if (a[1] > a[2]) {
+        temp = b[2];
+        b[2] = b[1];
+        b[1] = temp;
+    }
+
+    return b[1];
 }
