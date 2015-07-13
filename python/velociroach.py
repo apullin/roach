@@ -308,7 +308,7 @@ class Velociroach:
     def setAMSvibe(self, channel, frequency, amplitude, offset = 0, phase = 0):
         # freq should be a float in the range {0.0190738, 1250.}
         # phase should be a float in the range {-1.0, 1.0}
-        freqconv = 65.5350;   # For 1khz update timer
+        freqconv = 65.5350/2;   # For 1khz update timer
         self.clAnnounce()
         print "AMS Vibe: chan=",channel,"freq=",frequency," amp=",amplitude," offs=",offset," phase=",phase
         incr = int(round(float(freqconv) * float(frequency)))
