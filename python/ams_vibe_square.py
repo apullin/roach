@@ -55,24 +55,32 @@ def main():
     PHASE_90 = 0.5
     PHASE_180 = 1.0
     
+    POS = 10000;
+    
     ncycles = 2;
-    CHANGE_TIME = 500;
-    STOP_TIME = 1000;
-    EXPERIMENT_RUN_TIME_MS = ncycles*(2*CHANGE_TIME + 2*STOP_TIME)
-    tot_time = (EXPERIMENT_LEADIN_TIME_MS + EXPERIMENT_LEADOUT_TIME_MS + EXPERIMENT_RUN_TIME_MS )/1000.0
+    CHANGE_TIME_MS = 500;
+    STOP_TIME_MS = 1000;
+    EXPERIMENT_RUN_TIME_MS = ncycles*(2*CHANGE_TIME_MS + 2*STOP_TIME_MS)
+    TOTAL_TIME_MS = (EXPERIMENT_LEADIN_TIME_MS + EXPERIMENT_LEADOUT_TIME_MS + EXPERIMENT_RUN_TIME_MS )
     
     # Some preparation is needed to cleanly save telemetry data
     for r in shared.ROBOTS:
         if r.SAVE_DATA:
             #This needs to be done to prepare the .telemetryData variables in each robot object
-            r.setupTelemetryDataTime(4000)
+            r.setupTelemetryDataTime(TOTAL_TIME_MS)
             r.eraseFlashMem()
     
     #print
-    print "Total estimated time:", tot_time,"seconds,"
+    print "Total estimated time:", TOTAL_TIME_MS/1000.0,"seconds,"
     
     print "\n  ***************************\n  *******    READY    *******\n  Press ENTER to start run ...\n  ***************************"
     raw_input("")
+    
+    #### Set initial positionfreqL = 0
+    #R1.setAMSvibe(channel=1, frequency=0, amplitude = 0, offset = POS, phase = PHASE_ZERO)
+    #R1.setAMSvibe(channel=2, frequency=0, amplitude = 0, offset = POS, phase = PHASE_ZERO)
+    #R1.startTimedRun( 250 )
+    #time.sleep(250/1000.0)
     
     # Initiate telemetry recording; the robot will begin recording immediately when cmd is received.
     for r in shared.ROBOTS:
@@ -81,40 +89,40 @@ def main():
     
     time.sleep(EXPERIMENT_LEADIN_TIME_MS / 1000.0)    
     
-    R1.startTimedRun( 4000 )
+    R1.startTimedRun( EXPERIMENT_RUN_TIME_MS )
     
     for i in range(ncycles):
         #Transition to back
-        #print "Transition to back..."
-        #freqL = 1.0
-        #freqR = 1.0
-        #R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 3000, offset = 0, phase = PHASE_90)
-        #R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 3000, offset = 0, phase = PHASE_90)
-        #time.sleep(CHANGE_TIME / 1000.0)
+        print "Transition to back..."
+        freqL = 1.0
+        freqR = 1.0
+        R1.setAMSvibe(channel=1, frequency=freqL, amplitude = POS, offset = 0, phase = PHASE_90)
+        R1.setAMSvibe(channel=2, frequency=freqR, amplitude = POS, offset = 0, phase = PHASE_90)
+        time.sleep(CHANGE_TIME_MS / 1000.0)
         
         #back position
         print "Hold in back..."
         freqL = 0
         freqR = 0
-        R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 0, offset = -6000, phase = PHASE_ZERO)
-        R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 0, offset = -6000, phase = PHASE_ZERO)
-        time.sleep(STOP_TIME / 1000.0)
+        R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 0, offset = -POS, phase = PHASE_ZERO)
+        R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 0, offset = -POS, phase = PHASE_ZERO)
+        time.sleep(STOP_TIME_MS / 1000.0)
         
         #Transition to forward
-        #print "Transition to forward..."
-        #freqL = 1.0
-        #freqR = 1.0
-        #R1.setAMSvibe(channel=1, frequency=freqL, amplitude = -3000, offset = 0, phase = PHASE_90)
-        #R1.setAMSvibe(channel=2, frequency=freqR, amplitude = -3000, offset = 0, phase = PHASE_90)
-        #time.sleep(CHANGE_TIME / 1000.0)
+        print "Transition to forward..."
+        freqL = 1.0
+        freqR = 1.0
+        R1.setAMSvibe(channel=1, frequency=freqL, amplitude = -POS, offset = 0, phase = PHASE_90)
+        R1.setAMSvibe(channel=2, frequency=freqR, amplitude = -POS, offset = 0, phase = PHASE_90)
+        time.sleep(CHANGE_TIME_MS / 1000.0)
         
         #Forward position
         print "Hold in forward..."
         freqL = 0
         freqR = 0
-        R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 0, offset = 6000, phase = PHASE_ZERO)
-        R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 0, offset = 6000, phase = PHASE_ZERO)
-        time.sleep(STOP_TIME / 1000.0)
+        R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 0, offset = POS, phase = PHASE_ZERO)
+        R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 0, offset = POS, phase = PHASE_ZERO)
+        time.sleep(STOP_TIME_MS / 1000.0)
     
     time.sleep(EXPERIMENT_LEADOUT_TIME_MS / 1000.0)
        
@@ -130,10 +138,7 @@ def main():
     print "Done"
     
     
-    
-    
-    
-	
+
 	
 #Provide a try-except over the whole main function
 # for clean exit. The Xbee module should have better
