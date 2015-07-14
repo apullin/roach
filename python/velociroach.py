@@ -162,7 +162,7 @@ class Velociroach:
     def downloadTelemetry(self, timeout = 5, retry = True):
         #suppress callback output messages for the duration of download
         
-        progbar = tqdm(range(self.numSamples), mininterval=0.1, leave=True)
+        progbar = tqdm(range(self.numSamples), mininterval=0.1, leave=True, itername = 'pkts')
         recvd = 0;
         
         self.VERBOSE = False

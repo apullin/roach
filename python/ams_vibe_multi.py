@@ -43,47 +43,53 @@ def main():
     #Verify all robots can be queried
     verifyAllQueried()  #exits on failure
     
-    motorgains = [2500,0,0,0,0, 2500,0,0,0,0]
+    motorgains = [2000,0,0,0,0, 2000,0,0,0,0]
     #motorgains = [0,0,0,0,0, 0,0,0,0,0]
     R1.setMotorGains(motorgains)
     
     # example , 0.1s lead in + 2s run + 0.1s lead out
-    EXPERIMENT_RUN_TIME_MS     = 3000 #ms
+    EXPERIMENT_RUN_TIME_MS     = 6000 #ms
     EXPERIMENT_LEADIN_TIME_MS  = 100  #ms
     EXPERIMENT_LEADOUT_TIME_MS = 100  #ms
-    
-    # Some preparation is needed to cleanly save telemetry data
-    for r in shared.ROBOTS:
-        if r.SAVE_DATA:
-            #This needs to be done to prepare the .telemetryData variables in each robot object
-            r.setupTelemetryDataTime(EXPERIMENT_LEADIN_TIME_MS + EXPERIMENT_RUN_TIME_MS + EXPERIMENT_LEADOUT_TIME_MS)
-            r.eraseFlashMem()
     
     
     PHASE_ZERO = 0
     PHASE_90 = 0.5
     PHASE_180 = 1.0
-    DEADTIME = 6.0
+    DEADTIME = 5.0
     
-    freqs = [10, 13, 16, 19, 22, 25, 28, 31]
-    nrep = 7;
+    #freqs = [10, 13, 16, 19, 22, 25, 28, 31]
+    #freqs = [1,1.5,2,2.5]
+    freqs = [1.5, 1.5, 1.5, 1.5]
+    nrep = 1;
     
     flist = np.array([[i]*nrep for i in freqs]).flatten().tolist()
     
     nruns = len(flist)
     est_time = nruns * (EXPERIMENT_LEADIN_TIME_MS + EXPERIMENT_LEADOUT_TIME_MS + EXPERIMENT_RUN_TIME_MS)/1000.0 + (nruns-1)*DEADTIME
-    print
+    
+    # Initiate telemetry recording; the robot will begin recording immediately when cmd is received.
+    for r in shared.ROBOTS:
+        if r.SAVE_DATA:
+            r.startTelemetrySave()
     
     print "Total estimated time:", est_time,"seconds,",nruns,"trials."
     
     print "\n  ***************************\n  *******    READY    *******\n  Press ENTER to start run ...\n  ***************************"
     raw_input("")
     
+    time.sleep(3.0)
+    
+    # Initiate telemetry recording; the robot will begin recording immediately when cmd is received.
+    for r in shared.ROBOTS:
+        if r.SAVE_DATA:
+            r.startTelemetrySave()
+    
     for f in flist:        
         freqL = f
         freqR = f
         #amp = 2000
-        R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 5000, offset = 0, phase = PHASE_90)
+        R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
         R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
         
         # Sleep for a lead-in time before any motion commands
@@ -94,10 +100,7 @@ def main():
         #dead time between runs
         time.sleep(DEADTIME)
 
-    # Initiate telemetry recording; the robot will begin recording immediately when cmd is received.
-    for r in shared.ROBOTS:
-        if r.SAVE_DATA:
-            r.startTelemetrySave()
+    
     
     time.sleep(EXPERIMENT_LEADOUT_TIME_MS / 1000.0) 
     
