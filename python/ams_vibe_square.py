@@ -140,17 +140,17 @@ def main():
     
 
 	
-#Provide a try-except over the whole main function
+# Provide a try-except over the whole main function
 # for clean exit. The Xbee module should have better
 # provisions for handling a clean exit, but it doesn't.
-#TODO: provide a more informative exit here; stack trace, exception type, etc
+# TODO: provide a more informative exit here; stack trace, exception type, etc
 if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
         print "\nRecieved Ctrl+C, exiting."
     except Exception as args:
-        print "\nGeneral exception from main:\n",args,'\n'
+        print "\nGeneral exception from main:\n", args, '\n'
         print "\n    ******    TRACEBACK    ******    "
         traceback.print_exc()
         print "    *****************************    \n"
