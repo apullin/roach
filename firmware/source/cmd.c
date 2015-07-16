@@ -365,6 +365,6 @@ static unsigned char cmdSetAMSVibe(unsigned char type, unsigned char status, uns
     amsVibeSetPhase(argsPtr->channel, argsPtr->phase);
     amsVibeSetAmplitude(argsPtr->channel, argsPtr->amplitude);
     amsVibeSetOffset(argsPtr->channel, argsPtr->offset);
-
+    amsVibeSetTimebase(argsPtr->channel,0);
     return 1;
 }
