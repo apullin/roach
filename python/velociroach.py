@@ -10,7 +10,6 @@ from struct import pack,unpack
 from xbee import XBee
 from math import ceil,floor
 import numpy as np
-from tqdm import tqdm
 
 # TODO: check with firmware if this value is actually correct
 PHASE_0_DEG   = 0x0000
@@ -161,10 +160,6 @@ class Velociroach:
     ######TODO : sort out this function and flashReadback below
     def downloadTelemetry(self, timeout = 5, retry = True):
         #suppress callback output messages for the duration of download
-        
-        progbar = tqdm(range(self.numSamples), mininterval=0.1, leave=True, itername = 'pkts')
-        recvd = 0;
-        
         self.VERBOSE = False
         self.clAnnounce()
         print "Started telemetry download"
@@ -173,20 +168,9 @@ class Velociroach:
         dlStart = time.time()
         shared.last_packet_time = dlStart
         #bytesIn = 0
-        
-        progbar.next() #first showing
-        
         while self.telemetryData.count([]) > 0:
             time.sleep(0.02)
-            new_recvd = self.numSamples - self.telemetryData.count([])
-            diff = new_recvd - recvd
-            if diff > 0:
-                for i in range(diff):
-                    progbar.next()
-                    time.sleep(0.001)
-                recvd = new_recvd
-            #dlProgress(self.numSamples - self.telemetryData.count([]) , self.numSamples)
-            
+            dlProgress(self.numSamples - self.telemetryData.count([]) , self.numSamples)
             if (time.time() - shared.last_packet_time) > timeout:
                 print ""
                 #Terminal message about missed packets
@@ -211,18 +195,10 @@ class Velociroach:
                 else: #retry == false
                     print "Not trying telemetry download."          
 
-        
-        try:
-            while True:
-                progbar.next()
-                time.sleep(0.001)
-        except StopIteration:
-            pass
-        
         dlEnd = time.time()
         dlTime = dlEnd - dlStart
         #Final update to download progress bar to make it show 100%
-        #dlProgress(self.numSamples-self.telemetryData.count([]) , self.numSamples)
+        dlProgress(self.numSamples-self.telemetryData.count([]) , self.numSamples)
         #totBytes = 52*self.numSamples
         totBytes = 52*(self.numSamples - self.telemetryData.count([]))
         datarate = totBytes / dlTime / 1000.0
