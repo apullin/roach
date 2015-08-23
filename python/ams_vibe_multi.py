@@ -20,7 +20,7 @@ from velociroach import *
 
 ###### Operation Flags ####
 RESET_R1     = True  
-SAVE_DATA_R1 = False
+SAVE_DATA_R1 = True
 EXIT_WAIT    = False
 
 def main():    
@@ -48,61 +48,80 @@ def main():
     R1.setMotorGains(motorgains)
     
     # example , 0.1s lead in + 2s run + 0.1s lead out
-    EXPERIMENT_RUN_TIME_MS     = 6000 #ms
-    EXPERIMENT_LEADIN_TIME_MS  = 100  #ms
-    EXPERIMENT_LEADOUT_TIME_MS = 100  #ms
-    
+    #EXPERIMENT_RUN_TIME_MS     = 6000 #ms
+    EXPERIMENT_LEADIN_TIME_MS  = 250  #ms
+    EXPERIMENT_LEADOUT_TIME_MS = 250  #ms
+    DEADTIME = 3000
     
     PHASE_ZERO = 0
     PHASE_90 = 0.5
     PHASE_180 = 1.0
-    DEADTIME = 5.0
     
     #freqs = [10, 13, 16, 19, 22, 25, 28, 31]
     #freqs = [1,1.5,2,2.5]
-    freqs = [1.5, 1.5, 1.5, 1.5]
-    nrep = 1;
+    freqs = [0.5,1,1.5,2,3,4,5,6,7,8,9,10,12,14,16,18,20,25]
+    times = [15000]*4 + [10000]*10 + [8000]*4
+    #freqs = [5,6,7]
+    #times = [5000]*3
+    nrep = 1
+    
     
     flist = np.array([[i]*nrep for i in freqs]).flatten().tolist()
+    pairs = zip(flist, times)
     
     nruns = len(flist)
-    est_time = nruns * (EXPERIMENT_LEADIN_TIME_MS + EXPERIMENT_LEADOUT_TIME_MS + EXPERIMENT_RUN_TIME_MS)/1000.0 + (nruns-1)*DEADTIME
     
-    # Initiate telemetry recording; the robot will begin recording immediately when cmd is received.
-    for r in shared.ROBOTS:
-        if r.SAVE_DATA:
-            r.startTelemetrySave()
+    est_time = (sum(times) + EXPERIMENT_LEADIN_TIME_MS + EXPERIMENT_LEADOUT_TIME_MS + nruns*DEADTIME)/1000.0
     
     print "Total estimated time:", est_time,"seconds,",nruns,"trials."
     
-    print "\n  ***************************\n  *******    READY    *******\n  Press ENTER to start run ...\n  ***************************"
+    # Some preparation is needed to cleanly save telemetry data
+    for r in shared.ROBOTS:
+        if r.SAVE_DATA:
+            #This needs to be done to prepare the .telemetryData variables in each robot object
+            r.setupTelemetryDataTime(est_time*1000)
+            r.eraseFlashMem(timeout = 100)
+    
+    
+    print "!!!!!!!  SYSTEM INIT: ROBOT WILL MOVE BRIEFLY  !!!!!!!"
+    raw_input("")
+    R1.setAMSvibe(channel=1, frequency=1, amplitude = 0, offset = 0, phase = PHASE_ZERO)
+    R1.setAMSvibe(channel=2, frequency=1, amplitude = 0, offset = 0, phase = PHASE_ZERO)
+    R1.startTimedRun( 2000 )
+    time.sleep(2.5)
+    
+    print ""
+    print "****************************"
+    print "*******    READY    ********"
+    print "Press ENTER to start run ..."
+    print "****************************\n"
     raw_input("")
     
-    time.sleep(3.0)
+    time.sleep(5.0)
     
     # Initiate telemetry recording; the robot will begin recording immediately when cmd is received.
     for r in shared.ROBOTS:
         if r.SAVE_DATA:
             r.startTelemetrySave()
     
-    for f in flist:        
+    time.sleep(EXPERIMENT_LEADIN_TIME_MS / 1000.0)
+    
+    for f,t in pairs:        
+        EXPERIMENT_RUN_TIME_MS = t
         freqL = f
         freqR = f
         #amp = 2000
+        print "Running @ freq = {",freqL,",",freqR,"} for t=",EXPERIMENT_RUN_TIME_MS," ms"
         R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
         R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
         
         # Sleep for a lead-in time before any motion commands
-        time.sleep(EXPERIMENT_LEADIN_TIME_MS / 1000.0)
         R1.startTimedRun( EXPERIMENT_RUN_TIME_MS ) #Faked for now, since pullin doesn't have a working VR+AMS to test with
         time.sleep(EXPERIMENT_RUN_TIME_MS / 1000.0)  #argument to time.sleep is in SECONDS
         
         #dead time between runs
-        time.sleep(DEADTIME)
+        time.sleep(DEADTIME/1000.0)
 
-    
-    
-    time.sleep(EXPERIMENT_LEADOUT_TIME_MS / 1000.0) 
     
     for r in shared.ROBOTS:
         if r.SAVE_DATA:
