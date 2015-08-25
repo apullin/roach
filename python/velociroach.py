@@ -247,12 +247,12 @@ class Velociroach:
         fileout.write('% time | Right Leg Pos | Left Leg Pos | Commanded Right Leg Pos | Commanded Left Leg Pos | DCR | DCL | GyroX | GryoY | GryoZ | AX | AY | AZ | RBEMF | LBEMF | VBatt\n')
         fileout.close()
 
-    def setupTelemetryDataTime(self, runtime):
-        ''' This is NOT current for Velociroach! '''
-        #TODO : update for Velociroach
+    def setupTelemetryDataTime(self, runtime, samp_freq = None):
+        if samp_freq == None:
+            samp_freq = self.telemSampleFreq
         
         # Take the longer number, between numSamples and runTime
-        nrun = int(self.telemSampleFreq * runtime / 1000.0)
+        nrun = int(samp_freq * runtime / 1000.0)
         self.numSamples = nrun
         self.runtime = runtime
         

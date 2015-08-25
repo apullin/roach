@@ -79,7 +79,7 @@ def main():
     for r in shared.ROBOTS:
         if r.SAVE_DATA:
             #This needs to be done to prepare the .telemetryData variables in each robot object
-            r.setupTelemetryDataTime(est_time*1000)
+            r.setupTelemetryDataTime(est_time*1000, samp_freq = 500.0)
             r.eraseFlashMem(timeout = 100)
     
     
@@ -97,6 +97,7 @@ def main():
     print "****************************\n"
     raw_input("")
     
+    print "Dead time to start force sensor acq ..."
     time.sleep(5.0)
     
     # Initiate telemetry recording; the robot will begin recording immediately when cmd is received.
@@ -121,7 +122,7 @@ def main():
         
         #dead time between runs
         time.sleep(DEADTIME/1000.0)
-
+        
     
     for r in shared.ROBOTS:
         if r.SAVE_DATA:
