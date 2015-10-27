@@ -47,7 +47,7 @@ def main():
     R1.setMotorGains(motorgains)
     
     # example , 0.1s lead in + 2s run + 0.1s lead out
-    EXPERIMENT_RUN_TIME_MS     = 2000 #ms
+    EXPERIMENT_RUN_TIME_MS     = 10000 #ms
     EXPERIMENT_LEADIN_TIME_MS  = 100  #ms
     EXPERIMENT_LEADOUT_TIME_MS = 100  #ms
     
@@ -55,18 +55,18 @@ def main():
     for r in shared.ROBOTS:
         if r.SAVE_DATA:
             #This needs to be done to prepare the .telemetryData variables in each robot object
-            r.setupTelemetryDataTime(EXPERIMENT_LEADIN_TIME_MS + EXPERIMENT_RUN_TIME_MS + EXPERIMENT_LEADOUT_TIME_MS)
+            r.setupTelemetryDataTime(EXPERIMENT_LEADIN_TIME_MS + EXPERIMENT_RUN_TIME_MS + EXPERIMENT_LEADOUT_TIME_MS, samp_freq = 500.0)
             r.eraseFlashMem()
     
     
     PHASE_ZERO = 0
     PHASE_90   = 0.5
     PHASE_180  = 1.0
-    freqL = 2
-    freqR = 2
+    freqL = 16.52
+    freqR = 15.43
     #amp = 2000
-    R1.setAMSvibe(channel=1, frequency=freqL, amplitude = -10000, offset = 0, phase = PHASE_ZERO) #LEFT
-    R1.setAMSvibe(channel=2, frequency=freqR, amplitude = -10000, offset = 0, phase = PHASE_ZERO) #RIGHT
+    R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 4295, offset = -4294, phase = PHASE_ZERO) #LEFT
+    R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 4017, offset = -4927, phase = PHASE_ZERO) #RIGHT
     
     # Pause and wait to start run, including lead-in time
     print "\n  ***************************\n  *******    READY    *******\n  Press ENTER to start run ...\n  ***************************"

@@ -20,7 +20,7 @@ from velociroach import *
 
 ###### Operation Flags ####
 RESET_R1     = True  
-SAVE_DATA_R1 = True
+SAVE_DATA_R1 = False
 EXIT_WAIT    = False
 
 def main():    
@@ -113,8 +113,8 @@ def main():
         freqR = f
         #amp = 2000
         print "Running @ freq = {",freqL,",",freqR,"} for t=",EXPERIMENT_RUN_TIME_MS," ms"
-        R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
-        R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 5000, offset = 0, phase = PHASE_ZERO)
+        R1.setAMSvibe(channel=1, frequency=freqL, amplitude = 3000, offset = 3000, phase = PHASE_ZERO)
+        R1.setAMSvibe(channel=2, frequency=freqR, amplitude = 3000, offset = 3000, phase = PHASE_ZERO)
         
         # Sleep for a lead-in time before any motion commands
         R1.startTimedRun( EXPERIMENT_RUN_TIME_MS ) #Faked for now, since pullin doesn't have a working VR+AMS to test with
